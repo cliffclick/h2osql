@@ -518,6 +518,17 @@ public class ArrayUtils {
     return res;
   }
 
+  public static double[][] expandArray(double[][] ary, int newColNum) {
+    if(ary == null) return null;
+    assert ary.length < newColNum : "new array should be greater than original array in second dimension.";
+    int oldMatRow = ary.length;
+    double[][] res = new double[newColNum][newColNum];
+    for(int i = 0; i < oldMatRow; i++) {
+      System.arraycopy(ary[i], 0, res[i], 0, oldMatRow);
+    }
+    return res;
+  }
+
   /***
    * This function will perform transpose of triangular matrices only.  If the original matrix is lower triangular,
    * the return matrix will be upper triangular and vice versa.
@@ -874,6 +885,10 @@ public class ArrayUtils {
       if (from[i]>result) result = from[i];
     return result;
   }
+  public static int maxValue(Integer[] from) {
+    return Arrays.stream(from).max(Integer::compare).get();
+  }
+  
   public static long maxValue(int[] from) {
     int result = from[0];
     for (int i = 1; i<from.length; ++i)
@@ -1537,6 +1552,21 @@ public class ArrayUtils {
   public static double [] subtract (double [] a, double [] b) {
     double [] c = MemoryManager.malloc8d(a.length);
     subtract(a,b,c);
+    return c;
+  }
+  
+  public static double [][] subtract (double [][] a, double [][] b) {
+    double [][] c = MemoryManager.malloc8d(a.length, a[0].length);
+    for (int rowIndex = 0; rowIndex < c.length; rowIndex++) {
+      c[rowIndex] = subtract(a[rowIndex], b[rowIndex], c[rowIndex]);
+    }
+    return c;
+  }
+
+  public static int [] subtract (int [] a, int [] b) {
+    int [] c = MemoryManager.malloc4 (a.length);
+    for (int i = 0; i < a.length; i++)
+      c[i] = a[i]-b[i];
     return c;
   }
 

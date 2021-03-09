@@ -212,7 +212,7 @@ public class TargetEncoder extends ModelBuilder<TargetEncoderModel, TargetEncode
   protected void ignoreInvalidColumns(int npredictors, boolean expensive) {
     new FilterCols(npredictors){
       @Override
-      protected boolean filter(Vec v) {
+      protected boolean filter(Vec v, String name) {
         return !v.isCategorical();
       }
     }.doIt(train(), "Removing non-categorical columns found in the list of encoded columns.", expensive);

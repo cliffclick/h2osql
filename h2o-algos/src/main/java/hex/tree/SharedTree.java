@@ -345,8 +345,8 @@ public abstract class SharedTree<
         scoreAndBuildTrees(doOOBScoring());
         postProcessModel();
       } finally {
-        if (_iterationListener != null) {
-          _iterationListener.onAllIterationsComplete();
+        if (_eventPublisher != null) {
+          _eventPublisher.onAllIterationsComplete();
         }
         if( _model!=null ) _model.unlock(_job);
         for (Key<?> k : getGlobalQuantilesKeys()) Keyed.remove(k);
@@ -429,8 +429,8 @@ public abstract class SharedTree<
         Timer kb_timer = new Timer();
         boolean converged = buildNextKTrees();
         LOG.info((tid + 1) + ". tree was built in " + kb_timer.toString());
-        if (_iterationListener != null) {
-          _iterationListener.onIterationComplete();
+        if (_eventPublisher != null) {
+          _eventPublisher.onIterationComplete();
         }
         _job.update(1);
         if (_model._output._treeStats._max_depth==0) {
@@ -442,7 +442,7 @@ public abstract class SharedTree<
         }
         if (stop_requested()) throw new Job.JobCancelledException();
         if (tid == _ntrees - 1 && _coordinator != null) {
-          _coordinator = _coordinator.updateParameters();
+          _coordinator.updateParameters();
         }
       }
       // Final scoring (skip if job was cancelled)

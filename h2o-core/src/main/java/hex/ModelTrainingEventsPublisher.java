@@ -1,14 +1,14 @@
 package hex;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
-public class ModelTrainingListener {
+public class ModelTrainingEventsPublisher {
 
     public enum Event {ONE_DONE, ALL_DONE}
 
-    private final LinkedBlockingQueue<Event> _events;
+    private final BlockingQueue<Event> _events;
 
-    public ModelTrainingListener(LinkedBlockingQueue<Event> events) {
+    public ModelTrainingEventsPublisher(BlockingQueue<Event> events) {
         _events = events;
     }
 

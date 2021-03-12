@@ -15,6 +15,7 @@ import water.util.*;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -540,17 +541,19 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
     return FoldAssignment.nFoldWork(fold);
   }
 
-  protected transient LinkedBlockingQueue<ModelTrainingListener.Event> _events;
-  protected transient ModelTrainingListener _iterationListener;
+  protected transient ModelTrainingEventsPublisher _eventPublisher;
   protected transient ModelTrainingCoordinator _coordinator;
 
   public class ModelTrainingCoordinator {
 
+    private final BlockingQueue<ModelTrainingEventsPublisher.Event> _events;
     private final ModelBuilder<M, P, O>[] _cvModelBuilders;
     private int _inProgress;
 
 
-    public ModelTrainingCoordinator(ModelBuilder<M, P, O>[] cvModelBuilders) {
+    public ModelTrainingCoordinator(BlockingQueue<ModelTrainingEventsPublisher.Event> events, 
+                                    ModelBuilder<M, P, O>[] cvModelBuilders) {
+      _events = events;
       _cvModelBuilders = cvModelBuilders;
       _inProgress = _cvModelBuilders.length;
     }
@@ -559,17 +562,17 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
       cv_initStoppingParameters();
     }
     
-    public ModelTrainingCoordinator updateParameters() {
+    public void updateParameters() {
       try {
         while (_inProgress > 0) {
-          ModelTrainingListener.Event e = _events.take();
+          ModelTrainingEventsPublisher.Event e = _events.take();
           switch (e) {
             case ALL_DONE:
               _inProgress--;
               break;
             case ONE_DONE:
               if (cv_updateOptimalParameters(_cvModelBuilders))
-                return this;
+                return;
               break;
           }
         }
@@ -578,7 +581,6 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
         throw new RuntimeException("TODO - better message", e);
       }
       cv_updateOptimalParameters(_cvModelBuilders);
-      return null;
     }
   }
 
@@ -604,25 +606,30 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
       // Step 3: Build N train & validation frames; build N ModelBuilders; error check them all
       cvModelBuilders = cv_makeFramesAndBuilders(N, weights);
 
-      // Step 4: Run all the CV models
-      if (useParallelMainModelBuilding()) {
-        Log.info(_desc + " will be in parallel to the Cross-Validation models.");
-        _events = new LinkedBlockingQueue<>();
+      // Step 4: Run all the CV models (and optionally train the main model in parallel to the CV training)
+      final boolean buildMainModel;
+      if (useParallelMainModelBuilding(N)) {
+        int parallelization = nModelsInParallel(N);
+        Log.info(_desc + " will be trained in parallel to the Cross-Validation models " +
+                "(up to " + parallelization + " models running at the same time).");
+        BlockingQueue<ModelTrainingEventsPublisher.Event> events = new LinkedBlockingQueue<>();
         for (ModelBuilder<M, P, O> mb : cvModelBuilders) {
-          mb._iterationListener = new ModelTrainingListener(_events);
+          mb._eventPublisher = new ModelTrainingEventsPublisher(events);
         }
+        _coordinator = new ModelTrainingCoordinator(events, cvModelBuilders);
         final ModelBuilder<M, P, O>[] builders = Arrays.copyOf(cvModelBuilders, cvModelBuilders.length + 1);
-        _coordinator = new ModelTrainingCoordinator(cvModelBuilders);
         builders[builders.length - 1] = this;
-        ModelBuilderHelper.trainModelsParallel(builders, nModelsInParallel(N), _job, 0);
+        ModelBuilderHelper.trainModelsParallel(builders, parallelization, _job, 0);
+        buildMainModel = false;
       } else {
         cv_buildModels(N, cvModelBuilders);
+        buildMainModel = true;
       }
       
       // Step 5: Score the CV models
       ModelMetrics.MetricBuilder mbs[] = cv_scoreCVModels(N, weights, cvModelBuilders);
 
-      if (!useParallelMainModelBuilding()) {
+      if (buildMainModel) {
         // Step 6: Build the main model
         long time_allocated_to_main_model = (long) (maxRuntimeSecsPerModel(N, nModelsInParallel(N)) * 1e3);
         buildMainModel(time_allocated_to_main_model);
@@ -848,8 +855,9 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
     return mbs;
   }
 
-  private boolean useParallelMainModelBuilding() {
-    return _parms._parallelize_cross_validation && cv_canBuildMainModelInParallel();
+  private boolean useParallelMainModelBuilding(int nFolds) {
+    int parallelizationLevel = nModelsInParallel(nFolds);
+    return parallelizationLevel > 1 && _parms._parallelize_cross_validation && cv_canBuildMainModelInParallel();
   }
 
   protected boolean cv_canBuildMainModelInParallel() {

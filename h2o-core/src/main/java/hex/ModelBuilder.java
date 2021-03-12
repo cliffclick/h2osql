@@ -578,7 +578,7 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
-        throw new RuntimeException("TODO - better message", e);
+        throw new RuntimeException("Failed to update model parameters based on result of CV model training", e);
       }
       cv_updateOptimalParameters(_cvModelBuilders);
     }
@@ -619,7 +619,8 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
         _coordinator = new ModelTrainingCoordinator(events, cvModelBuilders);
         final ModelBuilder<M, P, O>[] builders = Arrays.copyOf(cvModelBuilders, cvModelBuilders.length + 1);
         builders[builders.length - 1] = this;
-        ModelBuilderHelper.trainModelsParallel(builders, parallelization, _job, 0);
+
+        new SubModelBuilder(_job, builders, parallelization).bulkBuildModels();
         buildMainModel = false;
       } else {
         cv_buildModels(N, cvModelBuilders);
@@ -801,14 +802,12 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
 
   // Step 4: Run all the CV models and launch the main model
   public void cv_buildModels(int N, ModelBuilder<M, P, O>[] cvModelBuilders ) {
-    makeCVModelBuilder("cross-validation", cvModelBuilders, nModelsInParallel(N)).bulkBuildModels();
+    makeCVModelBuilder(cvModelBuilders, nModelsInParallel(N)).bulkBuildModels();
     cv_computeAndSetOptimalParameters(cvModelBuilders);
   }
   
-  protected CVModelBuilder makeCVModelBuilder(
-      String modelType, ModelBuilder<?, ?, ?>[] modelBuilders, int parallelization
-  ) {
-    return new CVModelBuilder(modelType, _job, modelBuilders, parallelization);
+  protected CVModelBuilder makeCVModelBuilder(ModelBuilder<?, ?, ?>[] modelBuilders, int parallelization) {
+    return new CVModelBuilder(_job, modelBuilders, parallelization);
   }
   
   // Step 5: Score the CV models

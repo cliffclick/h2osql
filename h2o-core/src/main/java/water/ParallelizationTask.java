@@ -9,9 +9,8 @@ public class ParallelizationTask<T extends H2O.H2OCountedCompleter<T>> extends H
     private final T[] _tasks; // Task holder
     private final Job<?> _j; //Keep track of job progress
     private final int _maxParallelTasks;
-    private final int _workIncrement;
 
-    public ParallelizationTask(T[] tasks, int maxParallelTasks, Job<?> j, int workIncrement) {
+    public ParallelizationTask(T[] tasks, int maxParallelTasks, Job<?> j) {
         if (maxParallelTasks <= 0) {
             throw new IllegalArgumentException("Argument maxParallelTasks should be a positive integer, got: " + maxParallelTasks);
         }
@@ -19,7 +18,6 @@ public class ParallelizationTask<T extends H2O.H2OCountedCompleter<T>> extends H
         _ctr = new AtomicInteger(_maxParallelTasks - 1);
         _tasks = tasks;
         _j = j;
-        _workIncrement = workIncrement;
     }
 
     @Override public void compute2() {
@@ -45,8 +43,6 @@ public class ParallelizationTask<T extends H2O.H2OCountedCompleter<T>> extends H
         public void callback(H2O.H2OCountedCompleter cc) {
             _tasks[_taskId] = null; // mark completed
             if (_j != null) {
-                if (_workIncrement > 0)
-                    _j.update(_workIncrement);
                 if (_j.stop_requested()) {
                     final int current = _ctr.get();
                     Log.info("Skipping execution of last " + (_tasks.length - current) + " out of " + _tasks.length + " tasks.");

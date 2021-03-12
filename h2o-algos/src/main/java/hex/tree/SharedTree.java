@@ -1093,8 +1093,8 @@ public abstract class SharedTree<
   }
 
   @Override protected boolean cv_canBuildMainModelInParallel() {
-    if (_parms._max_runtime_secs > 0 && _parms._parallel_main_model_building)
-      throw new IllegalStateException("Parallel main model building shouldn't be be enabled when max_runtime_secs is specified.");
+    assert !_parms._parallel_main_model_building || _parms._max_runtime_secs == 0 : 
+            "Parallel main model building shouldn't be be enabled when max_runtime_secs is specified.";
     return _parms._parallel_main_model_building;
   }
   

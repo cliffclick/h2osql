@@ -282,7 +282,8 @@ NULL
         params[[name]] <<- .h2o.transformParam(i, params[[name]])
       }
     }
-    e })
+    e
+  })
 
   if (addGamCol)
     params$gam_columns <- NULL

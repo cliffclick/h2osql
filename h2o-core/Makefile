@@ -177,7 +177,7 @@ clean:
 
 
 # Download libs from maven
-lib:	lib/gson-2.6.2.jar lib/joda-time-2.9.9.jar lib/commons-io-2.4.jar lib/javax.servlet-api-3.1.0.jar lib/commons-lang-2.6.jar lib/commons-math3-3.3.jar lib/javassist-3.25.0-GA.jar lib/JTransforms-3.1.jar lib/JLargeArrays-1.6.jar lib/opencsv-2.3.jar lib/commons-codec-1.9.jar lib/duke-1.2.jar lib/junit-4.12.jar lib/hamcrest-core-1.3.jar lib/system-rules-1.18.0.jar lib/httpclient-4.5.2.jar lib/httpcore-4.4.4.jar lib/mockito-core-2.18.0.jar lib/tyrus-standalone-client-1.12.jar
+libs:	$(libs)
 
 # GSON/JSON in Java
 lib/gson-2.6.2.jar:
@@ -257,6 +257,11 @@ lib/tyrus-standalone-client-1.12.jar:
 	@[ -d lib ] || mkdir -p lib
 	@(cd lib; wget https://repo1.maven.org/maven2/org/glassfish/tyrus/bundles/tyrus-standalone-client/1.12/tyrus-standalone-client-1.12.jar)
 
+
+# Execute
+.PHONY: go
+go:	build/h2o.jar
+	java -cp "$?$(SEP)$(jars)" org.cliffc.sql.SQL
 
 # Build emacs tags (part of a tasty emacs ide experience)
 tags:	$(main_h2o_javas) $(test_h2o_javas)

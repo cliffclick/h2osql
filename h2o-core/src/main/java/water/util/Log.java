@@ -135,6 +135,7 @@ abstract public class Log {
   }
 
   private static void write0(int lvl, String s, Throwable t) {
+    System.out.println(s);
     //Logger log = (_logger != null ? _logger : createLog4j());
     //if (s.contains("\n")) {
     //  for (String line : s.split("\n")) {

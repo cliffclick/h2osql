@@ -65,7 +65,7 @@ public class NetworkInit {
     if (H2O.getWebServer() == null && !H2O.ARGS.disable_web) {
       final H2OHttpConfig config = webServerConfig(H2O.ARGS);
       h2oHttpView = new H2OHttpViewImpl(config);
-      H2O.setWebServer(HttpServerLoader.INSTANCE.createWebServer(h2oHttpView));
+      //H2O.setWebServer(HttpServerLoader.INSTANCE.createWebServer(h2oHttpView));
     }
 
     // API socket is only used to find opened port on given ip.
@@ -102,7 +102,7 @@ public class NetworkInit {
         // Warning: There is a ip:port race between socket close and starting Jetty
         if (!H2O.ARGS.disable_web) {
           apiSocket.close();
-          H2O.getWebServer().start(H2O.ARGS.web_ip, H2O.API_PORT);
+          //H2O.getWebServer().start(H2O.ARGS.web_ip, H2O.API_PORT);
         }
 
         break;

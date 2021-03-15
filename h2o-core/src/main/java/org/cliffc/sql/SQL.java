@@ -6,7 +6,9 @@ public class SQL {
   public static void main( String[] args ) {
 
     H2O.main(new String[0]);
+
+    System.out.println("booted");
     
-    throw new RuntimeException("hey");
+    System.exit(0);
   }
 }

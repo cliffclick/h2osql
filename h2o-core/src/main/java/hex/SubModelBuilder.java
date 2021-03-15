@@ -58,7 +58,7 @@ public class SubModelBuilder {
             boolean success = false;
             try {
                 _mb.startClock();
-                _mb.submitTrainModelTask();
+                _mb.submitTrainModelTask().join();
                 success = true;
             } finally {
                 LOG.info(_mb._desc + (success ? " completed successfully." : " failed."));

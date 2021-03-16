@@ -38,9 +38,10 @@ public final class ParserService {
    */
   synchronized public List<ParserProvider> getAllProviders(boolean sort) {
     List<ParserProvider> providers = new ArrayList<>();
-    for(ParserProvider pp : loader) {
-      providers.add(pp);
-    }
+    //for(ParserProvider pp : loader) {
+    //  providers.add(pp);
+    //}
+    providers.add(new DefaultParserProviders.CsvParserProvider());
     if (sort) {
       Collections.sort(providers, PARSER_PROVIDER_COMPARATOR);
     }
@@ -68,7 +69,8 @@ public final class ParserService {
           return pp;
         }
       }
-    return null;
+    return new DefaultParserProviders.CsvParserProvider();
+    //return null;
   }
 
   private static Comparator<ParserProvider> PARSER_PROVIDER_COMPARATOR = new Comparator<ParserProvider>() {

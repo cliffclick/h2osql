@@ -19,7 +19,7 @@ public class SQL {
   public static Table NATION   = new Table("nation",new String[]{"nationkey","name","regionkey","comment"},new String[]{"comment"});
   public static Table ORDERS   = new Table("orders",new String[]{"orderkey","custkey","orderstatus","totalprice","orderdate","orderpriority","cleark","shippriority","comment"},new String[]{"comment"});
   public static Table PART     = new Table("part",new String[]{"partkey","name","mfgr","brand","type","size","container","retailprice","comment"},new String[]{"comment"});
-  public static Table PARTSUPP = new Table("partsupp",new String[]{"ps_id","partkey","suppkey","availqty","comment"},new String[]{"comment"});
+  public static Table PARTSUPP = new Table("partsupp",new String[]{"ps_id","partkey","suppkey","availqty","supplycost","comment"},new String[]{"comment"});
   public static Table REGION   = new Table("region",new String[]{"regionkey","name","comment"},new String[]{"comment"});
   public static Table SUPPLIER = new Table("supplier",new String[]{"suppkey","name","address","nationkey","phone","acctbal","comment"},new String[]{"address","comment"});
 
@@ -43,17 +43,24 @@ public class SQL {
     System.out.println("Data loaded in "+(loaded-t)+" msec"); t=loaded;
     
     // Query#1
-    Frame q1 = Query1.do_q1();
-    long t_q1 = System.currentTimeMillis();
+    Frame q1 = Query1.run();
     System.out.println(q1.toTwoDimTable());
     q1.delete();
+    long t_q1 = System.currentTimeMillis();
     System.out.print("Query 1 "+(t_q1-t)+" msec, "); t=t_q1;
     for( int i=0; i<5; i++ ) {
-      Query1.do_q1().delete();
+      Query1.run().delete();
       t_q1 = System.currentTimeMillis();
       System.out.print(""+(t_q1-t)+" msec, "); t=t_q1;
     }
     System.out.println();
+
+    // Query#2
+    Frame q2 = Query2.run();
+    System.out.println(q2.toTwoDimTable());
+    q2.delete();
+    long t_q2 = System.currentTimeMillis();
+    System.out.print("Query 2 "+(t_q2-t)+" msec, "); t=t_q2;
     
     System.exit(0);
   }
@@ -104,8 +111,8 @@ public class SQL {
     // Any generic TPCH cleanup
     Frame init(Frame fr) {
       System.out.println(fr);
-      //System.out.println(FrameUtils.chunkSummary(fr));
-      //System.out.println(fr.toTwoDimTable());
+      System.out.println(FrameUtils.chunkSummary(fr));
+      System.out.println(fr.toTwoDimTable());
       
       return fr;
     }
@@ -120,4 +127,15 @@ public class SQL {
   
   // Make a new small-vector key, suitable for small Frame/Vec returns.
   public static Key<Vec> vkey() { return Vec.VectorGroup.VG_LEN1.addVec(); }
+
+  // Pretty sure this exists in H2O, just missing it
+  public static void copyRow(Chunk[] cs, NewChunk[] ncs, int row) {
+    BufferedString bStr = new BufferedString();
+    for( int i=0; i<cs.length; i++ ) {
+      if( cs[i].isNA(row)) ncs[i].addNA();
+      else if( cs[i] instanceof CStrChunk ) ncs[i].addStr(cs[i].atStr(bStr,row));
+      else ncs[i].addNum(cs[i].atd(row));
+    }
+  }
+  
 }

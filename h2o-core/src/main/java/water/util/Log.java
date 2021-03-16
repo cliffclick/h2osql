@@ -117,6 +117,7 @@ abstract public class Log {
   }
 
   private static void write0(int lvl, Object[] objs) {
+    if( lvl >= WARN ) return;
     StringBuilder msgBuff = new StringBuilder();
     Throwable t = null;
     for (int i = 0; i < objs.length - 1; i++) msgBuff.append(objs[i]);

@@ -49,8 +49,8 @@ public class Query3 implements SQL.Query {
   // Query plan:
 
   // Filter orders and lineitems by shipdate; a 50% filter.
-  // Filter customers by segment.
-  // JOIN them all.
+  // Filter customers by segment; a 20% filter; all filters take 15% of query time.
+  // JOIN them all; takes 80% of query time.
   // Run a Groupby, computing revenue
   // Sort.
   
@@ -78,6 +78,11 @@ public class Query3 implements SQL.Query {
     long t_filter = System.currentTimeMillis();
     //System.out.print("filter "+(t_filter-t)+" msec, "); t=t_filter;
 
+
+    // TODO: You could imagine filtering customers, then making a BitSet with
+    // custkey, passing the BitSet to filter ORDERS by cust & date.  This
+    // smaller set of orders then JOINs with lineitems.
+    
     // JOIN (customers and orders) and lineitems.  Takes ~80% of query time.
     // Reduces data by ~40x (SF 0.01, 39K rows -> 1K rows)
     Frame cust_ords = SQL.join(ords2,custs3);

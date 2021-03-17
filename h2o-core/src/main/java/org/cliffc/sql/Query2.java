@@ -62,33 +62,22 @@ order by
     p_partkey;
 */
 
-public class Query2 {
+public class Query2 implements SQL.Query {
+  @Override public String name() { return "Query2"; }
   static final int SIZE=15;
   static final String TYPE="BRASS";
   static final String REGION="EUROPE";
 
   static boolean[] IS_TYPE;     // Which categoricals contain the TYPE string
 
-  // JOIN: [part] and [partsupp] on partkey
-  // JOIN: [part,partsupp] and [supplier] on suppkey
-  // JOIN: [part,partsupp,supplier] and [nation] on nationkey
-  // JOIN: [part,partsupp,supplier,nation] and [region] on regionkey
-  // JOIN: [part,partsupp,supplier,nation,region]
-
-  // Match the following
-  // [part].size==SIZE &&
-  // [part].type.like(TYPE) &&
-  // [region].name==REGION &&
-
-  // Find min:
-  // ps_supplycost = min(partsupp.supplycost)
-
-  // Filter again:
-  // [partsupp].supplycost == ps_supplycost
-  
+  // Query plan:
+  // Filter parts by SIZE and TYPE.  This is like a 5%-pass filter.
+  // JOIN filtered parts with [nation,region,supplier,partsupp] on partkey
+  // Find min partsupp.supplycost grouped-by part - coult move the region filter here.
+  // Filter again by min supplycost-per-part and region.
   // Sort by supplier.acctbal/nation/supplier/partkey; report top 100.
   
-  public static Frame run() {
+  @Override public Frame run() {
     // Filter out unexciting part columns; keep whats needed for reporting and the query.
     Frame part0 = SQL.PART.frame();
     Frame part1 = part0.subframe(new String[]{"partkey","mfgr","type","size"});

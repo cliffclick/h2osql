@@ -39,11 +39,16 @@ order by
 
 */
 
-public class Query1 {
+public class Query1 implements SQL.Query {
+  @Override public String name() { return "Query1"; }
   
   interface Fcn_IID { abstract double run(int i, int j); }
 
-  public static Frame run() {
+  // Query plan:
+  // One big group-by pass over lineitem to collect sums and counts
+  // Print results to a Frame
+  
+  @Override public Frame run() {
     // Compute Big Data rollups
     Frame lineitem = SQL.LINEITEM.frame();
     GrpBySums q1 = new GrpBySums().doAll(lineitem);

@@ -10,6 +10,7 @@ import water.rapids.ast.params.*;
 import water.rapids.ast.prims.mungers.AstMerge;
 import water.rapids.vals.ValFrame;
 import water.util.FrameUtils;
+import water.util.SB;
 
 import java.io.IOException;
 
@@ -59,42 +60,34 @@ public class SQL {
     NATION_REGION = join(NATION.frame(),REGION.frame());
     NATION_REGION_SUPPLIER = join(NATION_REGION,SUPPLIER.frame());
     NATION_REGION_SUPPLIER_PARTSUPP = join(NATION_REGION_SUPPLIER,PARTSUPP.frame());
-
-    System.out.println(NATION_REGION_SUPPLIER_PARTSUPP.toTwoDimTable());
-    
+    System.out.println(NATION_REGION_SUPPLIER_PARTSUPP); // Print size of final join
     
     long t_join = System.currentTimeMillis();
     System.out.println("JOINs done in "+(t_join-t)+" msec"); t=t_join;
     System.out.println();
-    
-    // Query#1
-    System.out.println("--- Query#1 ---");
-    Frame q1 = Query1.run();
-    System.out.println(q1.toTwoDimTable());
-    q1.delete();
-    long t_q1 = System.currentTimeMillis();
-    System.out.print("Query 1 "+(t_q1-t)+" msec, "); t=t_q1;
-    for( int i=0; i<5; i++ ) {
-      Query1.run().delete();
-      t_q1 = System.currentTimeMillis();
-      System.out.print(""+(t_q1-t)+" msec, "); t=t_q1;
-    }
-    System.out.println();
-    System.out.println();
 
-    // Query#2
-    System.out.println("--- Query#2 ---");
-    Frame q2 = Query2.run();
-    System.out.println(q2.toTwoDimTable());
-    q2.delete();
-    long t_q2 = System.currentTimeMillis();
-    System.out.print("Query 2 "+(t_q2-t)+" msec, "); t=t_q2;
-    for( int i=0; i<5; i++ ) {
-      Query2.run().delete();
-      t_q2 = System.currentTimeMillis();
-      System.out.print(""+(t_q2-t)+" msec, "); t=t_q2;
+    // Run all queries once
+    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3()};
+    Query[] querys = new Query[]{new Query3()}; // DEBUG one query
+    System.out.println("--- Run Once ---");
+    for( Query query : querys ) {
+      Frame q = query.run();
+      System.out.println(q.toTwoDimTable());
+      q.delete();
+      long t_q = System.currentTimeMillis();
+      System.out.println(query.name()+" "+(t_q-t)+" msec "); t=t_q;
     }
-    System.out.println();
+
+    System.out.println("--- Run Many ---");
+    for( Query query : querys ) {
+      System.out.print(query.name()+" ");
+      for( int i=0; i<5; i++ ) {
+        query.run().delete();
+        long t_q = System.currentTimeMillis();
+        System.out.print(""+(t_q-t)+" msec, "); t=t_q;
+      }
+      System.out.println();
+    }                   
     System.out.println();
     
     System.exit(0);
@@ -146,9 +139,8 @@ public class SQL {
     // Any generic TPCH cleanup
     Frame init(Frame fr) {
       System.out.println(fr);
-      System.out.println(FrameUtils.chunkSummary(fr));
-      System.out.println(fr.toTwoDimTable());
-      
+      //System.out.println(FrameUtils.chunkSummary(fr));
+      //System.out.println(fr.toTwoDimTable());      
       return fr;
     }
 
@@ -174,6 +166,7 @@ public class SQL {
   }
 
   // Wrapper for JOIN.  Columns with matching names become the join key.
+  // Does not delete either Frame.
   public static Frame join( Frame lhs, Frame rhs ) {
     // Wrap the Rapids.ASTMerge code.
     AstRoot ast_lhs = new AstFrame(lhs);
@@ -209,4 +202,18 @@ public class SQL {
     return rez;
   }
 
+  static String histo( Frame fr, String name ) {
+    Vec vec = fr.vec(name);
+    double base  = vec.base  ();
+    double stride= vec.stride();
+    long[] bins  = vec.bins  ();
+
+    SB sb = new SB("--- ").p(name).p(" ---").nl();
+    for( int i=0; i<bins.length; i++ )
+      if( bins[i]!=0 )
+        sb.p(i*stride+base).p(':').p(bins[i]).nl();
+    return sb.toString();
+  }
+  
+  public interface Query { abstract Frame run(); abstract String name(); }
 }

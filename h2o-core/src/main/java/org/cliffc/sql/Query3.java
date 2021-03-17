@@ -60,14 +60,15 @@ public class Query3 implements SQL.Query {
     // Filter LINEITEM by date after, a 50% filter.
     Frame line0 = SQL.LINEITEM.frame(); // Filter by used columns
     Frame line1 = line0.subframe(new String[]{"orderkey","shipdate","extendedprice","discount"});
-    Frame line2 = new FilterDate(line1.find("shipdate"),SHIPPED_DATE,false).doAll(line1.types(),line1).outputFrame(line1.names(),line1.domains());
+    Frame line2 = new SQL.FilterDate(line1.find("shipdate"),SHIPPED_DATE,Long.MAX_VALUE).doAll(line1.types(),line1).outputFrame(line1.names(),line1.domains());
     Frame line3 = line2.subframe(new String[]{"orderkey","extendedprice","discount"}); // Drop shipdate after filter
+    //System.out.println(line3);
 
     // Filter ORDERS by date before, a 50% filter.
     Frame ords0 = SQL.ORDERS.frame(); // Filter by used columns
     assert ords0.vec("shippriority").isConst(); // TODO: optimize because constant column
     Frame ords1 = ords0.subframe(new String[]{"custkey","orderdate","orderkey"});
-    Frame ords2 = new FilterDate(ords1.find("orderdate"),SHIPPED_DATE,true).doAll(ords1.types(),ords1).outputFrame(ords1.names(),ords1.domains());
+    Frame ords2 = new SQL.FilterDate(ords1.find("orderdate"),0,SHIPPED_DATE).doAll(ords1.types(),ords1).outputFrame(ords1.names(),ords1.domains());
 
     // Filter CUSTOMERS by SEGMENT, a 20% filter
     Frame custs0 = SQL.CUSTOMER.frame(); // Filter by used columns
@@ -89,9 +90,11 @@ public class Query3 implements SQL.Query {
     ords2.delete();
     custs2.delete();
     Frame cust_ords2 = cust_ords.subframe(new String[]{"orderdate","orderkey"}); // Drop custkey after join
+    cust_ords2 = SQL.compact(cust_ords2);
     Frame line_cuds = SQL.join(cust_ords2,line3); // 1032 rows
     cust_ords.delete();
     line2.delete();
+    line_cuds = SQL.compact(line_cuds);
     long t_joins = System.currentTimeMillis();
     //System.out.print("joins "+(t_joins-t)+" msec, "); t=t_joins;
     
@@ -121,20 +124,6 @@ public class Query3 implements SQL.Query {
     rez1.add("shippriority",rez1.anyVec().makeZero());
     
     return rez1;
-  }
-
-  // Filter by before/after date.
-  private static class FilterDate extends MRTask<FilterDate> {
-    final boolean _before;
-    final int _datex;
-    final long _date;
-    FilterDate(int datex, long date, boolean before) { _datex=datex; _date=date; _before=before; }
-    @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
-      Chunk dates = cs[_datex];
-      // The Main Hot Loop
-      if( _before ) for( int i=0; i<dates._len; i++ ) { if( dates.at8(i) < _date ) SQL.copyRow(cs,ncs,i); }
-      else          for( int i=0; i<dates._len; i++ ) { if( dates.at8(i) > _date ) SQL.copyRow(cs,ncs,i); }
-    }
   }
 
   // Filter int column by exact match

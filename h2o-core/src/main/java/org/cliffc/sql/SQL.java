@@ -67,8 +67,8 @@ public class SQL {
     System.out.println();
 
     // Run all queries once
-    Query[] querys = new Query[]{new Query1(),new Query2(),new Query3()};
-    //Query[] querys = new Query[]{new Query3()}; // DEBUG one query
+    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4()};
+    Query[] querys = new Query[]{new Query4()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Query query : querys ) {
       System.out.println("--- "+query.name()+" ---");
@@ -194,13 +194,30 @@ public class SQL {
     Key<Frame> old = fr.getKey();
     // Repack the (very) sparse result into fewer chunks
     Key<Frame> key = Key.make("tmp_compact");
-    int nchunks = (int)((fr.numRows()+1023)/1024);
+    int shift = 13;
+    int nchunks = (int)((fr.numRows()+(1<<shift)-1)>>shift);
     H2O.submitTask(new RebalanceDataSet(fr, key, nchunks)).join();
     fr.delete();
     Frame rez = key.get();
     if( old != null ) DKV.put(old,rez);
     DKV.put(key,null);
     return rez;
+  }
+
+  // Filter by before/after date.
+  public static class FilterDate extends MRTask<FilterDate> {
+    final int _datex;
+    final long _lo, _hi;
+    FilterDate(int datex, long lo_date, long hi_date) { _datex=datex; _lo = lo_date; _hi = hi_date; }
+    @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
+      Chunk dates = cs[_datex];
+      // The Main Hot Loop
+      for( int i=0; i<dates._len; i++ ) {
+        long date = dates.at8(i);
+        if( _lo <= date && date < _hi )
+          SQL.copyRow(cs,ncs,i);
+      }
+    }
   }
 
   static String histo( Frame fr, String name ) {

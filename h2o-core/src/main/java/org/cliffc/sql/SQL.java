@@ -16,15 +16,15 @@ import java.io.IOException;
 
 public class SQL {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf-1";
+  public static final String SCALE_FACTOR = "sf-0.01";
 
   // The TPCH Schema
   // Always first column is the index column, and is just a number.
   // If a column name appears in another dataset, it refers via index.
-  public static final Table CUSTOMER = new Table("customer",new String[]{"custkey","name","address","nationkey","phone","acctbal","mktsegment","comment"},new String[]{"address","comment"});
-  public static final Table LINEITEM = new Table("lineitem",new String[]{"id","orderkey","ps_id","linenumber","quantity","extendedprice","discount","tax","returnflag","linestatus","shipdate","commitdate","receiptdate","shipinstruct","shipmode","comment"},new String[]{"comment"});
+  public static final Table CUSTOMER = new Table("customer",new String[]{"custkey","name","c_address","nationkey","phone","acctbal","mktsegment","c_comment"},new String[]{"c_address","c_comment"});
+  public static final Table LINEITEM = new Table("lineitem",new String[]{"orderkey","partkey","suppkey","linenumber","quantity","extendedprice","discount","tax","returnflag","linestatus","shipdate","commitdate","receiptdate","shipinstruct","shipmode","comment"},new String[]{"comment"});
   public static final Table NATION   = new Table("nation",new String[]{"nationkey","n_name","regionkey","n_comment"},new String[]{"n_comment"});
-  public static final Table ORDERS   = new Table("orders",new String[]{"orderkey","custkey","orderstatus","totalprice","orderdate","orderpriority","clerk","shippriority","comment"},new String[]{"comment"});
+  public static final Table ORDERS   = new Table("orders",new String[]{"orderkey","custkey","orderstatus","totalprice","orderdate","orderpriority","clerk","shippriority","o_comment"},new String[]{"o_comment"});
   public static final Table PART     = new Table("part",new String[]{"partkey","p_name","mfgr","brand","type","size","container","retailprice","p_comment"},new String[]{"p_comment"});
   public static final Table PARTSUPP = new Table("partsupp",new String[]{"partkey","suppkey","availqty","supplycost","ps_comment"},new String[]{"ps_comment"});
   public static final Table REGION   = new Table("region",new String[]{"regionkey","r_name","r_comment"},new String[]{"r_comment"});
@@ -60,22 +60,23 @@ public class SQL {
     NATION_REGION = join(NATION.frame(),REGION.frame());
     NATION_REGION_SUPPLIER = join(NATION_REGION,SUPPLIER.frame());
     NATION_REGION_SUPPLIER_PARTSUPP = join(NATION_REGION_SUPPLIER,PARTSUPP.frame());
-    System.out.println(NATION_REGION_SUPPLIER_PARTSUPP); // Print size of final join
+    //System.out.println(NATION_REGION_SUPPLIER_PARTSUPP); // Print size of final join
     
     long t_join = System.currentTimeMillis();
     System.out.println("JOINs done in "+(t_join-t)+" msec"); t=t_join;
     System.out.println();
 
     // Run all queries once
-    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3()};
-    Query[] querys = new Query[]{new Query3()}; // DEBUG one query
+    Query[] querys = new Query[]{new Query1(),new Query2(),new Query3()};
+    //Query[] querys = new Query[]{new Query3()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Query query : querys ) {
+      System.out.println("--- "+query.name()+" ---");
       Frame q = query.run();
       System.out.println(q.toTwoDimTable());
       q.delete();
       long t_q = System.currentTimeMillis();
-      System.out.println(query.name()+" "+(t_q-t)+" msec "); t=t_q;
+      System.out.println("--- "+query.name()+" "+(t_q-t)+" msec ---"); t=t_q;
     }
 
     System.out.println("--- Run Many ---");
@@ -138,9 +139,9 @@ public class SQL {
 
     // Any generic TPCH cleanup
     Frame init(Frame fr) {
-      System.out.println(fr);
+      //System.out.println(fr);
       //System.out.println(FrameUtils.chunkSummary(fr));
-      //System.out.println(fr.toTwoDimTable());      
+      //System.out.println(fr.toTwoDimTable(0,10,true));
       return fr;
     }
 
@@ -182,7 +183,7 @@ public class SQL {
 
     Frame fr = new AstMerge().apply(env,stk,new AstRoot[]{null,ast_lhs,ast_rhs,ast_all_left,ast_all_rite,ast_by_left,ast_by_rite,ast_method}).getFrame();
     //System.out.println(fr);
-    //System.out.println(fr.toTwoDimTable());
+    //System.out.println(fr.toTwoDimTable(0,10,true));
     return fr;
   }
 

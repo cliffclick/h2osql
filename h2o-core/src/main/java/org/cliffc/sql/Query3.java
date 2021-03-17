@@ -2,6 +2,8 @@ package org.cliffc.sql;
 
 import water.*;
 import water.fvec.*;
+import water.rapids.Merge;
+import water.rapids.ast.prims.mungers.AstGroup;
 import water.util.ArrayUtils;
 import org.joda.time.DateTime;
 
@@ -53,14 +55,18 @@ public class Query3 implements SQL.Query {
   // Sort.
   
   @Override public Frame run() {
+    long t = System.currentTimeMillis();
+    // Run 3 filters over Big Data.  Takes ~15% of query time.
     // Filter LINEITEM by date after, a 50% filter.
     Frame line0 = SQL.LINEITEM.frame(); // Filter by used columns
     Frame line1 = line0.subframe(new String[]{"orderkey","shipdate","extendedprice","discount"});
     Frame line2 = new FilterDate(line1.find("shipdate"),SHIPPED_DATE,false).doAll(line1.types(),line1).outputFrame(line1.names(),line1.domains());
+    Frame line3 = line2.subframe(new String[]{"orderkey","extendedprice","discount"}); // Drop shipdate after filter
 
     // Filter ORDERS by date before, a 50% filter.
     Frame ords0 = SQL.ORDERS.frame(); // Filter by used columns
-    Frame ords1 = ords0.subframe(new String[]{"custkey","orderdate","shippriority","orderkey"});
+    assert ords0.vec("shippriority").isConst(); // TODO: optimize because constant column
+    Frame ords1 = ords0.subframe(new String[]{"custkey","orderdate","orderkey"});
     Frame ords2 = new FilterDate(ords1.find("orderdate"),SHIPPED_DATE,true).doAll(ords1.types(),ords1).outputFrame(ords1.names(),ords1.domains());
 
     // Filter CUSTOMERS by SEGMENT, a 20% filter
@@ -68,28 +74,51 @@ public class Query3 implements SQL.Query {
     Frame custs1 = custs0.subframe(new String[]{"custkey","mktsegment"});
     int seg = ArrayUtils.find(custs1.vec("mktsegment").domain(),SEGMENT);
     Frame custs2 = new FilterCol(custs1.find("mktsegment"),seg).doAll(custs1.types(),custs1).outputFrame(custs1.names(),custs1.domains());
+    Frame custs3 = custs2.subframe(new String[]{"custkey"});
+    long t_filter = System.currentTimeMillis();
+    //System.out.print("filter "+(t_filter-t)+" msec, "); t=t_filter;
 
-    // JOIN (customers and orders) and lineitems
-    Frame cust_ords = SQL.join(ords2,custs2);
+    // JOIN (customers and orders) and lineitems.  Takes ~80% of query time.
+    // Reduces data by ~40x (SF 0.01, 39K rows -> 1K rows)
+    Frame cust_ords = SQL.join(ords2,custs3);
     ords2.delete();
     custs2.delete();
-    Frame line_cuds = SQL.join(cust_ords,line2);
+    Frame cust_ords2 = cust_ords.subframe(new String[]{"orderdate","orderkey"}); // Drop custkey after join
+    Frame line_cuds = SQL.join(cust_ords2,line3); // 1032 rows
     cust_ords.delete();
     line2.delete();
-
-    // Run a GroupBy(orderkey,orderdate,shippriority) and compute revenue
-    System.out.println(line_cuds.toTwoDimTable(0,10,true));
-    //System.out.println(SQL.histo(line_cuds,"orderkey"));
-    //System.out.println(SQL.histo(line_cuds,"orderdate"));
-    //System.out.println(SQL.histo(line_cuds,"shippriority"));
-    System.out.println(line_cuds.vec("shippriority").isConst());
-
+    long t_joins = System.currentTimeMillis();
+    //System.out.print("joins "+(t_joins-t)+" msec, "); t=t_joins;
     
+    // Add a revenue column
+    Vec rev = new Revenue().doAll(Vec.T_NUM,line_cuds.vecs(new String[]{"extendedprice","discount"})).outputFrame().anyVec();
+    line_cuds.add("revenue",rev); 
+    long t_rev = System.currentTimeMillis();
+    //System.out.print("rev "+(t_rev-t)+" msec, "); t=t_rev;
+    
+    // Run a GroupBy(orderkey,orderdate/*,shippriority*/) and compute sum_revenue
+    int[] gbCols = line_cuds.find(new String[]{"orderkey","orderdate"});
+    AstGroup.AGG agg = new AstGroup.AGG(AstGroup.FCN.sum,line_cuds.find("revenue"),AstGroup.NAHandling.RM,0);
+    Frame rez0 = new AstGroup().performGroupingWithAggregations(line_cuds,gbCols,new AstGroup.AGG[]{agg}).getFrame();
+    rez0.names()[2] = "revenue";  // Rename sum_revenue back to revenue
+    long t_gb = System.currentTimeMillis();
+    //System.out.print("groupby "+(t_gb-t)+" msec, "); t=t_gb;
 
-    return line_cuds;
+    // Sort by revenue and orderdate
+    Frame rez1 = Merge.sort(rez0,rez0.find(new String[]{"revenue",       "orderdate"    }),
+                                           new int[]   {Merge.DESCENDING,Merge.ASCENDING});
+    rez0.delete();
+    long t_sort = System.currentTimeMillis();
+    //System.out.print("sort "+(t_sort-t)+" msec, "); t=t_sort;
+    //System.out.println();
+
+    // Add in the constant shippriority column
+    rez1.add("shippriority",rez1.anyVec().makeZero());
+    
+    return rez1;
   }
 
-  // Filter by TYPE and SIZE.  Reduces dataset by ~50x
+  // Filter by before/after date.
   private static class FilterDate extends MRTask<FilterDate> {
     final boolean _before;
     final int _datex;
@@ -116,6 +145,11 @@ public class Query3 implements SQL.Query {
     }
   }
 
-
+  private static class Revenue extends MRTask<Revenue> {
+    @Override public void map( Chunk expr, Chunk disc, NewChunk rev ) {
+      for( int i=0; i<expr._len; i++ )
+        rev.addNum(expr.atd(i)*(1.0-disc.atd(i)));
+    }
+  }
   
 }

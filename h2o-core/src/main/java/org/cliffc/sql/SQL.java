@@ -18,7 +18,7 @@ import java.util.Arrays;
 
 public class SQL {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf-0.01";
+  public static final String SCALE_FACTOR = "sf-1";
 
   // The TPCH Schema
   // Always first column is the index column, and is just a number.
@@ -108,7 +108,7 @@ public class SQL {
     System.out.println("--- Run Many ---");
     for( Query query : querys ) {
       System.out.print(query.name()+" ");
-      for( int i=0; i<10; i++ ) {
+      for( int i=0; i<5; i++ ) {
         query.run().delete();
         long t_q = System.currentTimeMillis();
         System.out.print(""+(t_q-t)+" msec, "); t=t_q;

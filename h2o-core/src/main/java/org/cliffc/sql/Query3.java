@@ -62,7 +62,6 @@ public class Query3 implements SQL.Query {
     Frame line1 = line0.subframe(new String[]{"orderkey","shipdate","extendedprice","discount"});
     Frame line2 = new SQL.FilterDate(line1.find("shipdate"),SHIPPED_DATE,Long.MAX_VALUE).doAll(line1.types(),line1).outputFrame(line1.names(),line1.domains());
     Frame line3 = line2.subframe(new String[]{"orderkey","extendedprice","discount"}); // Drop shipdate after filter
-    //System.out.println(line3);
 
     // Filter ORDERS by date before, a 50% filter.
     Frame ords0 = SQL.ORDERS.frame(); // Filter by used columns
@@ -74,7 +73,7 @@ public class Query3 implements SQL.Query {
     Frame custs0 = SQL.CUSTOMER.frame(); // Filter by used columns
     Frame custs1 = custs0.subframe(new String[]{"custkey","mktsegment"});
     int seg = ArrayUtils.find(custs1.vec("mktsegment").domain(),SEGMENT);
-    Frame custs2 = new FilterCol(custs1.find("mktsegment"),seg).doAll(custs1.types(),custs1).outputFrame(custs1.names(),custs1.domains());
+    Frame custs2 = new SQL.FilterCol(custs1.find("mktsegment"),seg).doAll(custs1.types(),custs1).outputFrame(custs1.names(),custs1.domains());
     Frame custs3 = custs2.subframe(new String[]{"custkey"});
     long t_filter = System.currentTimeMillis();
     //System.out.print("filter "+(t_filter-t)+" msec, "); t=t_filter;
@@ -124,19 +123,6 @@ public class Query3 implements SQL.Query {
     rez1.add("shippriority",rez1.anyVec().makeZero());
     
     return rez1;
-  }
-
-  // Filter int column by exact match
-  private static class FilterCol extends MRTask<FilterCol> {
-    final int _colx, _e;
-    FilterCol(int colx, int e) { _colx = colx; _e = e; }
-    @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
-      Chunk datas = cs[_colx];
-      // The Main Hot Loop
-      for( int i=0; i<datas._len; i++ )
-        if( datas.at8(i) == _e )
-          SQL.copyRow(cs,ncs,i);
-    }
   }
 
   private static class Revenue extends MRTask<Revenue> {

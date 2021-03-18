@@ -48,26 +48,42 @@ public class SQL {
     PARTSUPP.frame();
     REGION  .frame();
     SUPPLIER.frame();
-    
-    REGION  .frame().toCategoricalCol(REGION  .frame().find("r_name"));
-    NATION  .frame().toCategoricalCol(NATION  .frame().find("n_name"));
-    SUPPLIER.frame().toCategoricalCol(SUPPLIER.frame().find("s_name"));
+
+    // A little cleanup
+    Frame nation   = NATION  .frame(); nation  .toCategoricalCol(nation  .find("n_name"));
+    Frame supplier = SUPPLIER.frame(); supplier.toCategoricalCol(supplier.find("s_name"));
+    Frame region   = REGION  .frame(); region  .toCategoricalCol(region  .find("r_name"));
+    Frame customer = CUSTOMER.frame();
+    // r_name and regionkey are redundant; fold together.
+    // Rename regionkey as r_name.
+    assert vecEqualsInt(region.vec("r_name"),region.vec("regionkey"));
+    region.remove("regionkey");
+    nation.names()[nation.find("regionkey")] = "r_name";
+    nation.vec("r_name").setDomain(region.vec("r_name").domain());
+    // n_name and nationkey are redundant; fold together.
+    // Rename nationkey as n_name.
+    assert vecEqualsInt(nation.vec("n_name"),nation.vec("nationkey"));
+    //nation.remove("nationkey");
+    //customer.names()[customer.find("nationkey")] = "n_name";
+    //customer.vec("n_name").setDomain(nation.vec("n_name").domain());
+    //supplier.names()[supplier.find("nationkey")] = "n_name";
+    //supplier.vec("n_name").setDomain(nation.vec("n_name").domain());
+
     
     long loaded = System.currentTimeMillis();
     System.out.println("Data loaded in "+(loaded-t)+" msec"); t=loaded;
 
     // Run a few common JOINs.
-    NATION_REGION = join(NATION.frame(),REGION.frame());
-    NATION_REGION_SUPPLIER = join(NATION_REGION,SUPPLIER.frame());
+    NATION_REGION = join(nation,region);
+    NATION_REGION_SUPPLIER = join(NATION_REGION,supplier);
     NATION_REGION_SUPPLIER_PARTSUPP = join(NATION_REGION_SUPPLIER,PARTSUPP.frame());
-    //System.out.println(NATION_REGION_SUPPLIER_PARTSUPP); // Print size of final join
     
     long t_join = System.currentTimeMillis();
     System.out.println("JOINs done in "+(t_join-t)+" msec"); t=t_join;
     System.out.println();
 
     // Run all queries once
-    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(), new Query5()};
+    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5()};
     Query[] querys = new Query[]{new Query5()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Query query : querys ) {
@@ -156,10 +172,11 @@ public class SQL {
   // Make a new small-vector key, suitable for small Frame/Vec returns.
   public static Key<Vec> vkey() { return Vec.VectorGroup.VG_LEN1.addVec(); }
 
-  // Pretty sure this exists in H2O, just missing it
+  // Copy the first cols of cs into ncs for this row.
+  // Pretty sure this exists in H2O, just missing it.
   public static void copyRow(Chunk[] cs, NewChunk[] ncs, int row) {
     BufferedString bStr = new BufferedString();
-    for( int i=0; i<cs.length; i++ ) {
+    for( int i=0; i<ncs.length; i++ ) {
       if( cs[i].isNA(row)) ncs[i].addNA();
       else if( cs[i] instanceof CStrChunk ) ncs[i].addStr(cs[i].atStr(bStr,row));
       else ncs[i].addNum(cs[i].atd(row));
@@ -220,6 +237,19 @@ public class SQL {
     }
   }
 
+  // Filter int column by exact match
+  static class FilterCol extends MRTask<FilterCol> {
+    final int _colx, _e;
+    FilterCol(int colx, int e) { _colx = colx; _e = e; }
+    @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
+      Chunk datas = cs[_colx];
+      // The Main Hot Loop
+      for( int i=0; i<datas._len; i++ )
+        if( datas.at8(i) == _e )
+          SQL.copyRow(cs,ncs,i);
+    }
+  }
+
   static String histo( Frame fr, String name ) {
     Vec vec = fr.vec(name);
     double base  = vec.base  ();
@@ -231,6 +261,20 @@ public class SQL {
       if( bins[i]!=0 )
         sb.p(i*stride+base).p(':').p(bins[i]).nl();
     return sb.toString();
+  }
+
+  // Two Vecs are compatible and equals, ignoring domains
+  static boolean vecEqualsInt( Vec v0, Vec v1 ) {
+    if( !v0.isCompatibleWith(v1) ) return false;
+    return new VecEquals().doAll(v0,v1)._eq;
+  }
+  private static class VecEquals extends MRTask<VecEquals> {
+    boolean _eq;
+    @Override public void map( Chunk c0, Chunk c1 ) {
+      for( int i=0; i<c0._len; i++ ) if( c0.at8(i)!=c1.at8(i) ) return;
+      _eq=true;
+    }
+    @Override public void reduce( VecEquals v ) { _eq |= v._eq; }
   }
   
   public interface Query { abstract Frame run(); abstract String name(); }

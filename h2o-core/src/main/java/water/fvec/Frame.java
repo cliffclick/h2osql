@@ -1478,7 +1478,7 @@ public class Frame extends Lockable<Frame> {
     }
   }
 
-  private String[][] domains(int [] cols){
+  public String[][] domains(int [] cols){
     Vec[] vecs = vecs();
     String[][] res = new String[cols.length][];
     for(int i = 0; i < cols.length; ++i)
@@ -1486,7 +1486,7 @@ public class Frame extends Lockable<Frame> {
     return res;
   }
 
-  private String [] names(int [] cols){
+  public String [] names(int [] cols){
     if(_names == null)return null;
     String [] res = new String[cols.length];
     for(int i = 0; i < cols.length; ++i)
@@ -1494,7 +1494,7 @@ public class Frame extends Lockable<Frame> {
     return res;
   }
 
-  private byte[] types(int [] cols){
+  public byte[] types(int [] cols){
     Vec[] vecs = vecs();
     byte[] res = new byte[cols.length];
     for(int i = 0; i < cols.length; ++i)

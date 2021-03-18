@@ -7,7 +7,9 @@ import water.rapids.Merge;
 import water.rapids.ast.prims.mungers.AstGroup;
 import water.util.ArrayUtils;
 import java.util.Arrays;
+import java.util.BitSet;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 /**
 The Order Priority Checking Query counts the number of orders ordered in a given
@@ -42,8 +44,8 @@ order by
 public class Query4 implements SQL.Query {
   @Override public String name() { return "Query4"; }
   
-  static final long LOW_DATE  = new DateTime("1993-07-01").getMillis();
-  static final long HIGH_DATE = new DateTime("1993-07-01").plusMonths(3).getMillis();
+  static final long LOW_DATE  = new DateTime("1993-07-01",DateTimeZone.UTC).getMillis();
+  static final long HIGH_DATE = new DateTime("1993-07-01",DateTimeZone.UTC).plusMonths(3).getMillis();
 
   @Override public Frame run() {
     long t = System.currentTimeMillis();
@@ -51,31 +53,38 @@ public class Query4 implements SQL.Query {
     // Filter LINEITEMS by commit < receipt, a 50% filter, and keep the matching orderkeys
     Frame line0 = SQL.LINEITEM.frame(); // Filter by used columns
     Frame line1 = line0.subframe(new String[]{"orderkey","commitdate","receiptdate"});
-    NonBlockingSetInt ordkeys = new FilterLate().doAll(line1)._nbsi;
-    System.out.println(ordkeys.length());
+    NonBlockingSetInt ordkeys = new FilterLate().doAll(line1)._ordkeys;
 
     // Filter ORDERS by date range and late ordkeys
     Frame ords0 = SQL.ORDERS.frame(); // Filter by used columns
     Frame ords1 = ords0.subframe(new String[]{"orderkey","orderdate","orderpriority"});
-    int[] pr_cnts = new FilterKeysDate(LOW_DATE,HIGH_DATE,ordkeys).doAll(ords1).pr_cnts;
-    System.out.println(Arrays.toString(pr_cnts));
+    double[] pr_cnts = new FilterKeysDate(LOW_DATE,HIGH_DATE,ordkeys).doAll(ords1).pr_cnts;
 
-    // 
+    // Format results
+    Frame fr = new Frame();
+    String[] prs = ords1.vec("orderpriority").domain();
+    Vec vec = Vec.makeSeq(0,prs.length);
+    vec.setDomain(prs);
+    fr.add("orderpriority",vec);
+    fr.add("order_count",Vec.makeVec(pr_cnts,Vec.newKey()));
 
-    return null;
+    return fr;
   }
 
   // Filter by date, then save matching orderkeys in a bitset
   public static class FilterLate extends MRTask<FilterLate> {
-    final NonBlockingSetInt _nbsi = new NonBlockingSetInt();
+    final NonBlockingSetInt _ordkeys = new NonBlockingSetInt();
+    //BitSet _ordkeys;
     @Override public void map( Chunk orderkeys, Chunk commits, Chunk receipts ) {
       // The Main Hot Loop
+      //_ordkeys = new BitSet();
       for( int i=0; i<commits._len; i++ )
         if( commits.at8(i) < receipts.at8(i) )
-          _nbsi.add((int)orderkeys.at8(i));
+          _ordkeys.add((int)orderkeys.at8(i));
     }
     @Override public void reduce( FilterLate fl ) {
-      if( _nbsi != fl._nbsi )
+      if( _ordkeys != fl._ordkeys )
+        //_ordkeys.or(fl._ordkeys);
         throw new RuntimeException("distributed reduce not implemented");
     }
   }
@@ -83,11 +92,12 @@ public class Query4 implements SQL.Query {
   // Filter by orderkeys and by date range; group-by orderpriority and compute counts.
   public static class FilterKeysDate extends MRTask<FilterKeysDate> {
     final long _lo, _hi;
+    //final BitSet _ordkeys;
     final NonBlockingSetInt _ordkeys;
-    int[] pr_cnts;
+    double[] pr_cnts;
     FilterKeysDate(long lo_date, long hi_date, NonBlockingSetInt ordkeys) { _lo = lo_date; _hi = hi_date; _ordkeys = ordkeys; }
     @Override public void map( Chunk ordkeys, Chunk dates, Chunk prioritys ) {
-      pr_cnts = new int[prioritys.vec().cardinality()];
+      pr_cnts = new double[prioritys.vec().cardinality()];
       
       // The Main Hot Loop
       for( int i=0; i<dates._len; i++ ) {

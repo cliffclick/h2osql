@@ -47,6 +47,12 @@ public class Query4 implements SQL.Query {
   static final long LOW_DATE  = new DateTime("1993-07-01",DateTimeZone.UTC).getMillis();
   static final long HIGH_DATE = new DateTime("1993-07-01",DateTimeZone.UTC).plusMonths(3).getMillis();
 
+  // Query plan:
+
+  // Filter LINEITEMS by being out-of-date; build a BitSet of matching orderkeys.
+  // Filter ORDERS by the date range and 'exists' orderkeys; groupby the (small) priorities.
+  // Result is Small data; format into a Frame.
+
   @Override public Frame run() {
     long t = System.currentTimeMillis();
 

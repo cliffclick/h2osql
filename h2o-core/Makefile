@@ -261,7 +261,7 @@ lib/tyrus-standalone-client-1.12.jar:
 # Execute
 .PHONY: go
 go:	build/h2o.jar
-	java -cp "$?$(SEP)$(jars)" org.cliffc.sql.SQL
+	java -ea -cp "$?$(SEP)$(jars)" org.cliffc.sql.SQL
 
 # Build emacs tags (part of a tasty emacs ide experience)
 tags:	$(main_h2o_javas) $(test_h2o_javas)

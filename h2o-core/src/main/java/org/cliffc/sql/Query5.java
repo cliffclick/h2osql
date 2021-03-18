@@ -76,17 +76,14 @@ public class Query5 implements SQL.Query {
 
     // Filter NATION_REGION_SUPPLIER by region
     Frame nrs0 = SQL.NATION_REGION_SUPPLIER; // Filter by used columns
-    Frame nrs1 = nrs0.subframe(new String[]{"nationkey","suppkey","r_name","n_name"});
-    //Frame nrs1 = nrs0.subframe(new String[]{"suppkey","r_name","n_name"});
+    Frame nrs1 = nrs0.subframe(new String[]{"suppkey","r_name","n_name"});
     int region = ArrayUtils.find(nrs1.vec("r_name").domain(),REGION);
     Frame nrs2 = new SQL.FilterCol(nrs1.find("r_name"),region).doAll(nrs1.types(),nrs1).outputFrame(nrs1.names(),nrs1.domains());
-    //Frame nrs3 = nrs2.subframe(new String[]{"suppkey","n_name"}); // Drop r_name after filter
-    Frame nrs3 = nrs2.subframe(new String[]{"nationkey","suppkey","n_name"}); // Drop r_name after filter
+    Frame nrs3 = nrs2.subframe(new String[]{"suppkey","n_name"}); // Drop r_name after filter
 
     // Customers
     Frame cust0 = SQL.CUSTOMER.frame();
-    Frame cust1 = cust0.subframe(new String[]{"custkey","nationkey"});
-    //Frame cust1 = cust0.subframe(new String[]{"custkey","n_name"});
+    Frame cust1 = cust0.subframe(new String[]{"custkey","n_name"});
 
     long t_filter = System.currentTimeMillis();
     if( PRINT_TIMING ) System.out.print("filter "+(t_filter-t)+" msec, "); t=t_filter;

@@ -582,7 +582,7 @@ public class Vec extends Keyed<Vec> {
     NewChunk nc = new NewChunk(v,0);
     Futures fs = new Futures();
     for(double d:vals) {
-      assert(Double.isNaN(d) || (long)d == d);
+      assert(domain==null||Double.isNaN(d) || (long)d == d);
       nc.addNum(d);
     }
     nc.close(fs);

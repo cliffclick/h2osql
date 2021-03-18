@@ -10,9 +10,11 @@ import water.rapids.ast.params.*;
 import water.rapids.ast.prims.mungers.AstMerge;
 import water.rapids.vals.ValFrame;
 import water.util.FrameUtils;
+import water.util.VecUtils;
 import water.util.SB;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class SQL {
   // Scale-factor; also part of the data directory name.
@@ -55,20 +57,28 @@ public class SQL {
     Frame region   = REGION  .frame(); region  .toCategoricalCol(region  .find("r_name"));
     Frame customer = CUSTOMER.frame();
     // r_name and regionkey are redundant; fold together.
-    // Rename regionkey as r_name.
+    // Rename regionkey as r_name; simple rename works because the columns' ints are the same.
     assert vecEqualsInt(region.vec("r_name"),region.vec("regionkey"));
     region.remove("regionkey");
     nation.names()[nation.find("regionkey")] = "r_name";
     nation.vec("r_name").setDomain(region.vec("r_name").domain());
     // n_name and nationkey are redundant; fold together.
+    // Have to produce a new domain, because columns do not align.
+    Vec n_name = nation.vec("n_name");
+    Vec nationkey = nation.vec("nationkey");
+    String[] odom = n_name.domain();
+    String[] ndom = new String[odom.length];
+    for( int i=0; i<odom.length; i++ ) {
+      assert nationkey.at8(i)==i; // keys are in-order, no skips
+      ndom[i] = odom[(int)n_name.at8(i)];
+    }
+    nationkey.setDomain(ndom);
     // Rename nationkey as n_name.
-    assert vecEqualsInt(nation.vec("n_name"),nation.vec("nationkey"));
-    //nation.remove("nationkey");
-    //customer.names()[customer.find("nationkey")] = "n_name";
-    //customer.vec("n_name").setDomain(nation.vec("n_name").domain());
-    //supplier.names()[supplier.find("nationkey")] = "n_name";
-    //supplier.vec("n_name").setDomain(nation.vec("n_name").domain());
-
+    nation.remove("nationkey");
+    customer.names()[customer.find("nationkey")] = "n_name";
+    supplier.names()[supplier.find("nationkey")] = "n_name";
+    customer.vec("n_name").setDomain(ndom);
+    supplier.vec("n_name").setDomain(ndom);
     
     long loaded = System.currentTimeMillis();
     System.out.println("Data loaded in "+(loaded-t)+" msec"); t=loaded;

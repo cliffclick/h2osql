@@ -94,7 +94,7 @@ public class SQL {
 
     // Run all queries once
     //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5()};
-    Query[] querys = new Query[]{new Query5()}; // DEBUG one query
+    Query[] querys = new Query[]{new Query6()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Query query : querys ) {
       System.out.println("--- "+query.name()+" ---");

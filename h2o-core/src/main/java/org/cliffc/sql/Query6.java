@@ -39,16 +39,17 @@ public class Query6 implements SQL.Query {
   static final long LOW_DATE  = new DateTime("1994-01-01",DateTimeZone.UTC).getMillis();
   static final long HIGH_DATE = new DateTime("1994-01-01",DateTimeZone.UTC).plusYears(1).getMillis();
   static final double DISCOUNT = 0.06;
-  static final int QUANTITY = 24;
+  static final double EPSILON = 1e-10;
+  static final long QUANTITY = 24;
   
   @Override public Frame run() {
     Frame line0 = SQL.LINEITEM.frame();
     Frame line1 = line0.subframe(new String[]{"shipdate","discount","quantity","extendedprice"});
     double sum = new FilterSum(line1).doAll(line1)._sum;
-    System.out.println(sum);
-    System.out.println(line1.toTwoDimTable(0,10,true));
-    
-    return null;
+    // Format results
+    Frame fr = new Frame();
+    fr.add("revenue",Vec.makeVec(new double[]{sum},Vec.newKey()));
+    return fr;
   }
 
   private static class FilterSum extends MRTask<FilterSum> {
@@ -72,7 +73,7 @@ public class Query6 implements SQL.Query {
           long quant = quantity.at8(i);
           if( quant < QUANTITY ) {
             double disc = discount.atd(i);
-            if( DISCOUNT-0.01 <= disc && disc <= DISCOUNT+0.01 )
+            if( DISCOUNT-0.01-EPSILON <= disc && disc <= DISCOUNT+0.01+EPSILON )
               sum += extended.atd(i)*disc;
           }
         }

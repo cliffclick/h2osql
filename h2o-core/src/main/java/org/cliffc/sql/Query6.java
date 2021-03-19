@@ -42,10 +42,11 @@ public class Query6 implements SQL.Query {
   static final int QUANTITY = 24;
   
   @Override public Frame run() {
-    double sum = new FilterSum(SQL.LINEITEM.frame()).doAll(SQL.LINEITEM.frame())._sum;
+    Frame line0 = SQL.LINEITEM.frame();
+    Frame line1 = line0.subframe(new String[]{"shipdate","discount","quantity","extendedprice"});
+    double sum = new FilterSum(line1).doAll(line1)._sum;
     System.out.println(sum);
-
-    
+    System.out.println(line1.toTwoDimTable(0,10,true));
     
     return null;
   }

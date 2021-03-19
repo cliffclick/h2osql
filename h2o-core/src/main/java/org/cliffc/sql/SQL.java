@@ -18,7 +18,7 @@ import java.util.Arrays;
 
 public class SQL {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf-1";
+  public static final String SCALE_FACTOR = "sf-0.01";
 
   // The TPCH Schema
   // Always first column is the index column, and is just a number.

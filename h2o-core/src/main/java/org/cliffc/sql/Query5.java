@@ -53,7 +53,7 @@ order by
 
 public class Query5 implements SQL.Query {
   @Override public String name() { return "Query5"; }
-  static final boolean PRINT_TIMING = true;
+  static final boolean PRINT_TIMING = false;
   
   static final long LOW_DATE  = new DateTime("1994-01-01",DateTimeZone.UTC).getMillis();
   static final long HIGH_DATE = new DateTime("1994-01-01",DateTimeZone.UTC).plusYears(1).getMillis();
@@ -61,13 +61,14 @@ public class Query5 implements SQL.Query {
   
   // Query plan:
 
-  // guessing:
-  // filter ORDERS by year-date.
-  // Pre-join customers into NATION_REGION_SUPPLIER_PARTSUPP if it fits.
-  // Filter N_R_S_P_CUST by region.
-  // JOIN orders & linenumbers
-  // GroupBy Name (small) & compute revenue sum
-
+  // Filter ORDERS by year-date.
+  // Filter NATION_REGION_SUPPLIER by REGION
+  // Join NRS with CUSTOMER by n_name
+  // Join NRSC with ORDERS by custkey (most expensive step)
+  // Compute Small data unique orderkeys, and nation-per-suppkey-per-orderkey.
+  //   Works because unique orderkeys is about 1/400 NRSC; should work up to SF100.
+  //   Avoids a final Join of NRSCO with LINEITEM - which is far more expensive.
+  // Filter LINEITEM by matching orderkey+suppkey; GroupBy nation & compute revenue.
   
   @Override public Frame run() {
     long t = System.currentTimeMillis();
@@ -110,16 +111,8 @@ public class Query5 implements SQL.Query {
     Frame line0 = SQL.LINEITEM.frame();
     Frame line1 = line0.subframe(new String[]{"orderkey","suppkey","extendedprice","discount"});
     
-    //// Join NRSCO with lineitem using orderkey,suppkey
-    //Frame nrscol_0 = SQL.join(nrsco_1,line1);
-    //nrsco_0.delete();
-    //long t_join2 = System.currentTimeMillis();
-    //if( PRINT_TIMING ) System.out.print("join2 "+(t_join2-t)+" msec, "); t=t_join2;    
-    //// GroupBy n_name, computing revenue
-    //double[] n_revs = new GBRevenue().doAll(nrscol_0.vec("n_name"),nrscol_0.vec("extendedprice"),nrscol_0.vec("discount")).n_revs;
-
-    // Gather suppkeys-per-unique-ord.  Will hash on orderkey, and linear search on suppkey
-    NonBlockingHashMapLong<int[]> uniqords = new UniqueOrders().doAll(nrsco_1.vecs())._uniqords;
+    // Gather suppkeys-per-unique-ord, and n_name-per-suppkey
+    NonBlockingHashMapLong<NonBlockingHashMapLong<Integer>> uniqords = new UniqueOrders().doAll(nrsco_1.vecs())._uniqords;
     long t_uniq = System.currentTimeMillis();
     if( PRINT_TIMING ) System.out.print("uniques "+(t_uniq-t)+" msec, "); t=t_uniq;
 
@@ -128,37 +121,6 @@ public class Query5 implements SQL.Query {
     double[] n_revs = new FilterLNGB(nrs0.vec("n_name").cardinality(),uniqords).doAll(line1).n_revs;    
     long t_gb = System.currentTimeMillis();
     if( PRINT_TIMING ) System.out.print("GB "+(t_gb-t)+" msec, "); t=t_gb;
-
-    // got customers+nation+region+suppliers, with same nation & region==ASIA, picks up custkey
-    // JOIN1: NRSC & ORDS3 (pre-filtered by year)
-
-    // already ordsupp joined on 
-    // expensive join: check lineitem.orderkey == ordsupp.orderkey && lineitem.suppkey == ordsupp.suppkey
-    // want: just filtered lineitems with test (lineitem.orderkey == ordsupp.orderkey && lineitem.suppkey == ordsupp.suppkey),
-    // GB on nation w/revenue.
-
-    // is orderkey/suppkey small?  used to filter lineitems.
-    // ORDERS=1.5M*SF == 4bytes.  SUPPLIERS is small.  Can be 8-bytes.
-    // 18M rows in SF1, 180M in SF10, 1800M in SF100.
-    // Use NBHML?  8-bytes for order/spp, reports back missing or nationkey.
-    // Barely fit SF10 (180M entries) in a single 2G array.
-    
-    // Orderkeys are sorted in orders.  are they sorted in NRSC?
-    // can i binsearch orderkeys in lineitem?;
-    // - from matching row filter out mismatch suppkey
-    // - - from matching suppkey, get nation & compute GB rev
-
-    // NOPE...
-    // dense array of suppkey & nation; index by orderkey.
-    // Limit of 2B orderkeys fits SF100; supkey is 10K*SF; SF1=> 2bytes, SF10=>100K=>2bytes+1bit, SF100==>1M=>20bits/3bytes.
-    // Fits SF 100 with 4byte suppkeys.  Nation is a byte.
-    // orderkey is NOT unique; several matching suppliers
-
-    // Plan C: unique orderkeys is 400x smaller, and each orderkeys has 4-6
-    // matching suppkey & nation.  NBHML orderkeys to int[]/pair of suppkey/
-    // nationkey, growable array.
-    
-
     
     // Format results
     String[] prs = nrs0.vec("n_name").domain();
@@ -179,24 +141,20 @@ public class Query5 implements SQL.Query {
   }
 
   private static class UniqueOrders extends MRTask<UniqueOrders> {
-    transient NonBlockingHashMapLong<int[]> _uniqords;
-    @Override protected void setupLocal() { _uniqords = new NonBlockingHashMapLong<>(10000); }
+    transient NonBlockingHashMapLong<NonBlockingHashMapLong<Integer>> _uniqords;
+    @Override protected void setupLocal() { _uniqords = new NonBlockingHashMapLong<NonBlockingHashMapLong<Integer>>(10000); }
     @Override public void map(Chunk ordkeys, Chunk suppkeys, Chunk nnames) {
       for( int i=0; i<ordkeys._len; i++ ) {
         long ordkey =     ordkeys .at8(i);
         int suppkey= (int)suppkeys.at8(i);
-        int nname  = (int)nnames  .at8(i);
-        while( true ) {
-          int[] sns = _uniqords.get(ordkey);
-          if( sns==null ) {
-            if( _uniqords.putIfAbsent(ordkey,new int[]{suppkey,nname}) == null ) break;
-          } else {
-            int[] nnn = Arrays.copyOf(sns,sns.length+2);
-            nnn[sns.length  ]=suppkey;
-            nnn[sns.length+1]=nname;
-            if( _uniqords.replace(ordkey,sns,nnn) ) break;
-          }
+        Integer nname = Integer.valueOf((int)nnames.at8(i));
+        NonBlockingHashMapLong<Integer> nbsi = _uniqords.get(ordkey);
+        if( nbsi==null ) {
+          NonBlockingHashMapLong<Integer> nbsi2 = new NonBlockingHashMapLong<>();
+          nbsi = _uniqords.putIfAbsent(ordkey, nbsi2);
+          if( nbsi==null ) nbsi = nbsi2; // Use the old value, or the new value if no old value
         }
+        nbsi.put(suppkey,nname);
       }
     }
     @Override public void reduce( UniqueOrders uqo ) {
@@ -206,10 +164,10 @@ public class Query5 implements SQL.Query {
   }
 
   private static class FilterLNGB extends MRTask<FilterLNGB> {
-    final NonBlockingHashMapLong<int[]> _uniqords;
+    final NonBlockingHashMapLong<NonBlockingHashMapLong<Integer>> _uniqords;
     final int _nation_card;
     double[] n_revs;
-    FilterLNGB( int nation_card, NonBlockingHashMapLong<int[]> uniqords ) {
+    FilterLNGB( int nation_card, NonBlockingHashMapLong<NonBlockingHashMapLong<Integer>> uniqords ) {
       _uniqords = uniqords;
       _nation_card = nation_card;
     }
@@ -218,14 +176,11 @@ public class Query5 implements SQL.Query {
       n_revs = new double[_nation_card]; // revenue-by-nation
       for( int i=0; i<l_ordks._len; i++ ) {
         long ordkey = l_ordks.at8(i);
-        int[] supns = _uniqords.get(ordkey);
-        if( supns==null ) continue; // No matching order
-        int suppkey = (int)l_supks.at8(i);
-        for( int j=0; j<supns.length; j+=2 )
-          if( supns[j]==suppkey ) {
-            n_revs[supns[j+1]] += exprices.atd(i)*(1.0-discs.atd(i));
-            break;
-          }
+        NonBlockingHashMapLong<Integer> nbsi = _uniqords.get(ordkey);
+        if( nbsi==null ) continue; // No matching order
+        Integer in = nbsi.get(l_supks.at8(i));
+        if( in!=null )          // No matching suppkey
+          n_revs[in] += exprices.atd(i)*(1.0-discs.atd(i));
       }
     }
     @Override public void reduce( FilterLNGB flngb ) {
@@ -233,115 +188,6 @@ public class Query5 implements SQL.Query {
     }
   }
 
-  
-  private static class AssertSort extends MRTask<AssertSort> {
-    @Override public void map(Chunk oks) {
-      for( int i=0; i<oks._len-1; i++ )
-        assert oks.at8(i)<oks.at8(i+1);
-    }
-  }
-
-  // Failed because orderkeys are not unique
-//    // Fill suppkey/nationkey array, indexed by orderkey.
-//    int nrows = (int)nrsco_1.vec("orderkey").max()+1;
-//    int[] suppkeys = new int[nrows];
-//    byte[] nkeys  = new byte[nrows];
-//    new FillSN(suppkeys,nkeys).doAll(nrsco_1.vecs());
-//    double[] n_revs = new FilterLNGB(nrs0.vec("n_name").cardinality(),suppkeys,nkeys).doAll(line1).n_revs;
-//  static class FillSN extends MRTask<FillSN> {
-//    final int[] _suppkeys;
-//    final byte[] _nkeys;
-//    FillSN(int[] suppkeys, byte[] nkeys) { _suppkeys=suppkeys; _nkeys=nkeys; }
-//    @Override public void map( Chunk ordkeys, Chunk suppkeys, Chunk nkeys ) {
-//      for( int i=0; i<ordkeys._len; i++ ) {
-//        int ordkey = (int)ordkeys.at8(i);
-//        assert _suppkeys[ordkey]==0; // fails
-//        _suppkeys[ordkey] = (int) suppkeys.at8(i);
-//        _nkeys   [ordkey] = (byte)nkeys   .at8(i);
-//      }
-//    }
-//  }
-//  static class FilterLNGB extends MRTask<FilterLNGB> {
-//    final int[] _suppkeys;
-//    final byte[] _nkeys;
-//    final int _nation_card;
-//    double[] n_revs;
-//    FilterLNGB( int nation_card, int[] suppkeys, byte[] nkeys ) {
-//      _suppkeys = suppkeys;
-//      _nkeys = nkeys;
-//      _nation_card = nation_card;
-//    }
-//    @Override public void map( Chunk[] cs ) {
-//      Chunk l_ordks = cs[0], l_supks = cs[1], exprices = cs[2], discs = cs[3];
-//      n_revs = new double[_nation_card];
-//      for( int i=0; i<l_ordks._len; i++ ) {
-//        int ordkey = (int)l_ordks.at8(i);
-//        if( ordkey < _suppkeys.length && l_supks.at8(i)== _suppkeys[ordkey] )
-//          n_revs[_nkeys[ordkey]] += exprices.atd(i)*(1.0-discs.atd(i));
-//      }
-//    }
-//    @Override public void reduce( FilterLNGB flngb ) {
-//      ArrayUtils.add(n_revs,flngb.n_revs);
-//    }
-//  }
-
-//  static class FilterLNGB extends MRTask<FilterLNGB> {
-//    final Vec _vordkeys, _vsuppkeys, _vnnames;
-//    final int _nation_card;
-//    double[] n_revs;
-//    FilterLNGB( Frame nrcso ) {
-//      _vordkeys = nrcso.vec("orderkey");
-//      _vsuppkeys= nrcso.vec("suppkey");
-//      _vnnames  = nrcso.vec("n_name");
-//      _nation_card = _vnname.cardinality();
-//    }
-//    @Override public void map( Chunk[] cs ) {
-//      Chunk l_ordks = cs[0], l_supks = cs[1], exprices = cs[2], discs = cs[3];
-//      n_revs = new double[_nation_card];
-//      Reader vrord = _vordkeys.new Reader();
-//      for( int i=0; i<l_ordks._len; i++ ) {
-//        long ordkey = l_ordks.at8(i);
-//        int row = binsearch(vrod,ordkey);
-//        if( row==-1 ) continue; // No matching orderkey
-//        assert vrord.at8(row)==ordkey;
-//        long suppkey = l_supks.at8(i);
-//        while( vrord.at8(row)==ordkey ) {
-//          if( suppkey == vrsupp.at8(row) ) {
-//            n_revs[vrnkey.at8(row)] += exprices.atd(i)*(1.0-discs.atd(i));
-//            break;              // the next row will not match both ord & supp or else we got dups
-//          }
-//          row++;
-//        }
-//      }
-//    }
-//    @Override public void reduce( FilterLNGB flngb ) {
-//      ArrayUtils.add(n_revs,flngb.n_revs);
-//    }
-//  }
-
-
-//    // Fill suppkey/nationkey array, indexed by orderkey.
-//    int nrows = (int)nrsco_1.vec("orderkey").max()+1;
-//    int[] suppkeys = new int[nrows];
-//    byte[] nkeys  = new byte[nrows];
-//    new FillSN(suppkeys,nkeys).doAll(nrsco_1.vecs());
-//    double[] n_revs = new FilterLNGB(nrs0.vec("n_name").cardinality(),suppkeys,nkeys).doAll(line1).n_revs;
-//  static class FillSN extends MRTask<FillSN> {
-//    final int[] _suppkeys;
-//    final byte[] _nkeys;
-//    FillSN(int[] suppkeys, byte[] nkeys) { _suppkeys=suppkeys; _nkeys=nkeys; }
-//    @Override public void map( Chunk ordkeys, Chunk suppkeys, Chunk nkeys ) {
-//      for( int i=0; i<ordkeys._len; i++ ) {
-//        int ordkey = (int)ordkeys.at8(i);
-//        assert _suppkeys[ordkey]==0; // fails
-//        _suppkeys[ordkey] = (int) suppkeys.at8(i);
-//        _nkeys   [ordkey] = (byte)nkeys   .at8(i);
-//      }
-//    }
-//  }
-
-
-  
   // Filter by orderkeys and by date range; group-by orderpriority and compute counts.
   static class GBRevenue extends MRTask<GBRevenue> {
     double[] n_revs;

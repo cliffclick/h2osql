@@ -288,6 +288,6 @@ public class SQL {
     }
     @Override public void reduce( VecEquals v ) { _eq |= v._eq; }
   }
-  
+
   public interface Query { abstract Frame run(); abstract String name(); }
 }

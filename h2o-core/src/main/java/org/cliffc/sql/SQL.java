@@ -62,9 +62,10 @@ public class SQL {
     region.remove("regionkey");
     nation.names()[nation.find("regionkey")] = "r_name";
     nation.vec("r_name").setDomain(region.vec("r_name").domain());
+    
     // n_name and nationkey are redundant; fold together.
     // Have to produce a new domain, because columns do not align.
-    Vec n_name = nation.vec("n_name");
+    Vec n_name    = nation.vec("n_name");
     Vec nationkey = nation.vec("nationkey");
     String[] odom = n_name.domain();
     String[] ndom = new String[odom.length];
@@ -72,11 +73,12 @@ public class SQL {
       assert nationkey.at8(i)==i; // keys are in-order, no skips
       ndom[i] = odom[(int)n_name.at8(i)];
     }
-    nationkey.setDomain(ndom);
     // Rename nationkey as n_name.
-    nation.remove("nationkey");
+    nation.remove("n_name");
+    nation  .names()[nation  .find("nationkey")] = "n_name";
     customer.names()[customer.find("nationkey")] = "n_name";
     supplier.names()[supplier.find("nationkey")] = "n_name";
+    nation  .vec("n_name").setDomain(ndom);
     customer.vec("n_name").setDomain(ndom);
     supplier.vec("n_name").setDomain(ndom);
     
@@ -93,7 +95,7 @@ public class SQL {
     System.out.println();
 
     // Run all queries once
-    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5(),new Query6()};
+    //Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5(),new Query6(), new Query7()};
     Query[] querys = new Query[]{new Query7()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Query query : querys ) {

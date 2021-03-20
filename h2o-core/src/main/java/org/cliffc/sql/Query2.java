@@ -69,6 +69,8 @@ public class Query2 implements SQL.Query {
   static final String REGION="EUROPE";
 
   static boolean[] IS_TYPE;     // Which categoricals contain the TYPE string
+  static final String[] PARTCOLS = new String[]{"partkey", "mfgr",    "type",    "size"};
+  static final int                               PARTIDX=0 ,MFGRIDX=1, TYPEIDX=2, SIZEIDX=3;
 
   // Query plan:
   // Filter parts by SIZE and TYPE.  This is like a 5%-pass filter.
@@ -107,7 +109,11 @@ public class Query2 implements SQL.Query {
     
     // Filter again to matching supplycost & region.  Keep the first 8 cols
     // only, dropping r_name and supplycost.
-    int[] r0cols = new int[]{PARTIDX,1,2,3,4,5,6,9};
+    Vec r_name = partsjoin.remove("r_name");
+    Vec supplycost = partsjoin.remove("supplycost");
+    partsjoin.add("r_name",r_name); // Shuffle to the end, to drop them
+    partsjoin.add("supplycost",supplycost);
+    int[] r0cols = new int[]{PARTIDX,1,2,3,4,5,6,7};
     Frame rez0 = new FilterCost(region,mins).doAll(partsjoin.types(r0cols),partsjoin).outputFrame(partsjoin.names(r0cols),partsjoin.domains(r0cols));
     partsjoin.delete();
     // Repack the sparse result into fewer chunks
@@ -122,8 +128,6 @@ public class Query2 implements SQL.Query {
   }
 
   // Filter by TYPE and SIZE.  Reduces dataset by ~50x
-  static final String[] PARTCOLS = new String[]{"partkey","mfgr","type","size"};
-  static final int PARTIDX=0, MFGRIDX=1, TYPEIDX=2, SIZEIDX=3;
   private static class FilterPart extends MRTask<FilterPart> {
     final boolean[] _is_type;
     FilterPart(boolean[] is_type) { _is_type = is_type; }
@@ -141,6 +145,7 @@ public class Query2 implements SQL.Query {
   }
 
   // Find min-cost supply amongst unique parts.
+
   static final String[] MINCOLS = new String[]{"partkey","acctbal","s_name","n_name","s_address","phone","s_comment","r_name","supplycost"};
   static final int REGIONIDX=7, SUPCOSTIDX=8;
   { assert MINCOLS[REGIONIDX].equals("r_name")
@@ -182,8 +187,8 @@ public class Query2 implements SQL.Query {
     FilterCost( int region, NonBlockingHashMapLong<Double> mins ) { _region = region; _mins = mins; }
     @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
       Chunk partkeys= cs[PARTIDX];
-      Chunk costs   = cs[SUPCOSTIDX];
-      Chunk r_names = cs[REGIONIDX];
+      Chunk costs   = cs[SUPCOSTIDX+1];
+      Chunk r_names = cs[REGIONIDX+1];
       // The Main Hot Loop
       for( int i=0; i<costs._len; i++ )
         if( r_names.at8(i)==_region ) {

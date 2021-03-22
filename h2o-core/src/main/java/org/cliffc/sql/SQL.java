@@ -8,17 +8,13 @@ import water.rapids.Session;
 import water.rapids.ast.*;
 import water.rapids.ast.params.*;
 import water.rapids.ast.prims.mungers.AstMerge;
-import water.rapids.vals.ValFrame;
-import water.util.FrameUtils;
-import water.util.VecUtils;
 import water.util.SB;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 public class SQL {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf-1";
+  public static final String SCALE_FACTOR = "sf-0.01";
 
   // The TPCH Schema
   // Always first column is the index column, and is just a number.
@@ -95,7 +91,7 @@ public class SQL {
     System.out.println();
 
     // Run all queries once
-    Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5(),new Query6(), new Query7()};
+    Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5(),new Query6(), new Query7(), new Query8()};
     //Query[] querys = new Query[]{new Query8()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Query query : querys ) {
@@ -142,7 +138,7 @@ public class SQL {
       try {
         String fname = "c:/Users/cliffc/Desktop/raicode/packages/DelveBenchmarks/src/TPCH/data/"+SCALE_FACTOR+"/"+_name+".tbl";
         NFSFileVec nfs = NFSFileVec.make(fname);      
-        Key[] keys = new Key[]{nfs._key};
+        Key<?>[] keys = new Key[]{nfs._key};
 
         // Force CSV parse, with '|' field separator, no-single-quotes,
         // no-header, give column count based on schema, no heuristic data
@@ -199,21 +195,20 @@ public class SQL {
   // Does not delete either Frame.
   public static Frame join( Frame lhs, Frame rhs ) {
     // Wrap the Rapids.ASTMerge code.
-    AstRoot ast_lhs = new AstFrame(lhs);
-    AstRoot ast_rhs = new AstFrame(rhs);
-    AstRoot ast_all_left = new AstNum(0); // boolean, exclude LHS if no match in RHS
-    AstRoot ast_all_rite = new AstNum(0); // boolean, exclude RHS if no match in LHS
-    AstRoot ast_by_left = new AstNumList(); // Auto-pick matching columns
-    AstRoot ast_by_rite = new AstNumList(); // Auto-pick matching columns
-    AstRoot ast_method = new AstStr("auto"); // Auto-pick method
+    AstRoot<?> ast_lhs = new AstFrame(lhs);
+    AstRoot<?> ast_rhs = new AstFrame(rhs);
+    AstRoot<?> ast_all_left = new AstNum(0); // boolean, exclude LHS if no match in RHS
+    AstRoot<?> ast_all_rite = new AstNum(0); // boolean, exclude RHS if no match in LHS
+    AstRoot<?> ast_by_left = new AstNumList(); // Auto-pick matching columns
+    AstRoot<?> ast_by_rite = new AstNumList(); // Auto-pick matching columns
+    AstRoot<?> ast_method = new AstStr("auto"); // Auto-pick method
 
     Env env = new Env(new Session());
     Env.StackHelp stk = env.stk();
 
-    Frame fr = new AstMerge().apply(env,stk,new AstRoot[]{null,ast_lhs,ast_rhs,ast_all_left,ast_all_rite,ast_by_left,ast_by_rite,ast_method}).getFrame();
     //System.out.println(fr);
     //System.out.println(fr.toTwoDimTable(0,10,true));
-    return fr;
+    return new AstMerge().apply(env,stk,new AstRoot[]{null,ast_lhs,ast_rhs,ast_all_left,ast_all_rite,ast_by_left,ast_by_rite,ast_method}).getFrame();
   }
 
   // Repack a sparse frame.  Deletes old frame & returns a new one with the same key
@@ -289,5 +284,5 @@ public class SQL {
     @Override public void reduce( VecEquals v ) { _eq |= v._eq; }
   }
 
-  public interface Query { abstract Frame run(); abstract String name(); }
+  public interface Query { Frame run(); String name(); }
 }

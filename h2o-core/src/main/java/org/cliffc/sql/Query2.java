@@ -1,12 +1,10 @@
 package org.cliffc.sql;
 
-import water.*;
+import water.MRTask;
 import water.fvec.*;
 import water.util.ArrayUtils;
 import water.rapids.Merge;
 import water.nbhm.NonBlockingHashMapLong;
-import org.joda.time.DateTime;
-import java.util.Arrays;
 
 /**
 The Minimum Cost Supplier Query finds, in a given region, for each part of a
@@ -68,7 +66,6 @@ public class Query2 implements SQL.Query {
   static final String TYPE="BRASS";
   static final String REGION="EUROPE";
 
-  static boolean[] IS_TYPE;     // Which categoricals contain the TYPE string
   static final String[] PARTCOLS = new String[]{"partkey", "mfgr",    "type",    "size"};
   static final int                               PARTIDX=0 ,MFGRIDX=1, TYPEIDX=2, SIZEIDX=3;
 
@@ -148,8 +145,8 @@ public class Query2 implements SQL.Query {
 
   static final String[] MINCOLS = new String[]{"partkey","acctbal","s_name","n_name","s_address","phone","s_comment","r_name","supplycost"};
   static final int REGIONIDX=7, SUPCOSTIDX=8;
-  { assert MINCOLS[REGIONIDX].equals("r_name")
-      &&   MINCOLS[  PARTIDX].equals("partkey");
+  static { assert MINCOLS[REGIONIDX].equals("r_name")
+             &&   MINCOLS[  PARTIDX].equals("partkey");
   }
   private static class MinCost extends MRTask<MinCost> {
     final int _region;
@@ -195,7 +192,7 @@ public class Query2 implements SQL.Query {
           long partkey = partkeys.at8(i);
           double cost = costs.atd(i);
           Double min = _mins.get(partkey);
-          if( (double)min==cost )
+          if( min==cost )
             SQL.copyRow(cs,ncs,i);
         }
     }

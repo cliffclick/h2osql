@@ -42,7 +42,7 @@ order by
 public class Query1 implements SQL.Query {
   @Override public String name() { return "Query1"; }
   
-  interface Fcn_IID { abstract double run(int i, int j); }
+  interface Fcn_IID { double run( int i, int j ); }
 
   // Query plan:
   // One big group-by pass over lineitem to collect sums and counts

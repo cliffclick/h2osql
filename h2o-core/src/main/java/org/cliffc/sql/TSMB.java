@@ -56,31 +56,31 @@ public class TSMB {
     long t0 = System.currentTimeMillis(), t;
     System.out.println("Loading TPCH data for "+SCALE_FACTOR);
 
-    CITY = load("City");
-    CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
-    COMMENT = load("Comment");
-    COMMENT_HASTAG_TAG = load("Comment_hasTag_Tag");
-    COMPANY = load("Company");
-    COMPANY_ISLOCATEDIN_COUNTRY = load("Company_isLocatedIn_Country");
-    CONTINENT = load("Continent");
-    COUNTRY = load("Country");
-    COUNTRY_ISPARTOF_CONTINENT = load("Country_isPartOf_Continent");
-    FORUM = load("Forum");
-    FORUM_HASMEMBER_PERSON = load("Forum_hasMember_Person");
-    FORUM_HASTAG_TAG = load("Forum_hasTag_Tag");
-    PERSON = load("Person");
+    //CITY = load("City");
+    //CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
+    //COMMENT = load("Comment");
+    //COMMENT_HASTAG_TAG = load("Comment_hasTag_Tag");
+    //COMPANY = load("Company");
+    //COMPANY_ISLOCATEDIN_COUNTRY = load("Company_isLocatedIn_Country");
+    //CONTINENT = load("Continent");
+    //COUNTRY = load("Country");
+    //COUNTRY_ISPARTOF_CONTINENT = load("Country_isPartOf_Continent");
+    //FORUM = load("Forum");
+    //FORUM_HASMEMBER_PERSON = load("Forum_hasMember_Person");
+    //FORUM_HASTAG_TAG = load("Forum_hasTag_Tag");
+    //PERSON = load("Person");
     PERSON_HASINTEREST_TAG = load("Person_hasInterest_Tag");
     PERSON_KNOWS_PERSON = load("Person_knows_Person");
-    PERSON_LIKES_COMMENT = load("Person_likes_Comment");
-    PERSON_LIKES_POST = load("Person_likes_Post");
-    PERSON_STUDYAT_UNIVERSITY = load("Person_studyAt_University");
-    PERSON_WORKAT_COMPANY = load("Person_workAt_Company");
-    POST = load("Post");
-    POST_HASTAG_TAG = load("Post_hasTag_Tag");
-    TAGCLASS = load("TagClass");
-    TAG = load("Tag");
-    UNIVERSITY = load("University");
-    UNIVERSITY_ISLOCATEDIN_CITY = load("University_isLocatedIn_City");
+    //PERSON_LIKES_COMMENT = load("Person_likes_Comment");
+    //PERSON_LIKES_POST = load("Person_likes_Post");
+    //PERSON_STUDYAT_UNIVERSITY = load("Person_studyAt_University");
+    //PERSON_WORKAT_COMPANY = load("Person_workAt_Company");
+    //POST = load("Post");
+    //POST_HASTAG_TAG = load("Post_hasTag_Tag");
+    //TAGCLASS = load("TagClass");
+    //TAG = load("Tag");
+    //UNIVERSITY = load("University");
+    //UNIVERSITY_ISLOCATEDIN_CITY = load("University_isLocatedIn_City");
     t = System.currentTimeMillis(); System.out.println("Data loaded; "+PrettyPrint.bytes(NSIZE)+" bytes in "+(t-t0)+" msec, Frames take "+PrettyPrint.bytes(FSIZE)); t0=t;
 
 
@@ -91,7 +91,7 @@ public class TSMB {
     System.out.println("--- Run Once ---");
     for( Delve query : delves ) {
       System.out.println("--- "+query.name()+" ---");
-      int cnt = query.run();
+      long cnt = query.run();
       System.out.println(cnt);
       t = System.currentTimeMillis(); System.out.println("--- "+query.name()+" "+(t-t0)+" msec ---"); t0=t;
     }
@@ -109,7 +109,7 @@ public class TSMB {
     
     System.exit(0);
   }
-  public interface Delve { int run(); String name(); }
+  public interface Delve { long run(); String name(); }
 
   public static Frame load(String fname) throws IOException {
     NFSFileVec nfs = NFSFileVec.make(DIRNAME+fname+".csv");

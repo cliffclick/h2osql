@@ -1,0 +1,55 @@
+def q1 = count[city, country, person, forum, post, comment, tag, tagclass:
+    city_is_part_of_country(city, country)
+    and person_is_located_in_place(person, city)
+    and forum_has_moderator_person(forum, person)
+    and forum_container_of_post(forum, post)
+    and comment_reply_of_post(comment, post)
+    and comment_has_tag(comment, tag)
+    and tag_has_type_tagclass(tag, tagclass)
+]
+
+def likes[message] = count[person: person_likes_message(person, message)]
+def replies[message] = count[comment: comment_reply_of_message(comment, message)]
+
+def q2 = sum[m, tag, person, v:
+    message_has_tag_tag(m, tag)
+    and message_has_creator_person(m, person)
+    and v = default_value[message, likes, 1][m] * default_value[message, replies, 1][m]
+]
+
+def q3 = count[message, comment, tag1, tag2:
+    message_has_tag_tag(message, tag1)
+    and comment_reply_of_message(comment, message)
+    and comment_has_tag(comment, tag2)
+    and not(comment_has_tag(comment, tag1))
+    and tag1 != tag2
+]
+
+def q4 = count[personA, personB, comment, post:
+    person_knows_person(personA, personB)
+    and comment_has_creator_person(comment, personA)
+    and comment_reply_of_post(comment, post)
+    and post_has_creator_person(post, personB)
+]
+
+def q5 = count[cityA, cityB, cityC, country, pA, pB, pC:
+    city_is_part_of_country(cityA, country)
+    and city_is_part_of_country(cityB, country)
+    and city_is_part_of_country(cityC, country)
+
+    and person_is_located_in_place(pA, cityA)
+    and person_is_located_in_place(pB, cityB)
+    and person_is_located_in_place(pC, cityC)
+
+    and person_knows_person(pA, pB)
+    and person_knows_person(pB, pC)
+    and person_knows_person(pC, pA)
+]
+
+@must_try_faqtorize def q6 = count[person1, person2, person3, tag:
+    person_knows_person(person1, person2)
+    and person_knows_person(person2, person3)
+    and person_has_interest_tag(person3, tag)
+    and person1 != person3
+    and not(person_knows_person(person1, person3))
+]

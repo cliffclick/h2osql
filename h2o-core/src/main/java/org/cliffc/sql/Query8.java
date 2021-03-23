@@ -2,14 +2,15 @@ package org.cliffc.sql;
 
 import water.*;
 import water.fvec.*;
-//import water.rapids.Merge;
-//import water.rapids.ast.prims.mungers.AstGroup;
 import water.nbhm.NonBlockingSetInt;
 import water.util.ArrayUtils;
-//import water.util.VecUtils;
 import java.util.BitSet;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+// Query8 is NOT FUNCTIONAL.  Stopped mid-development, since Q1-Q7 prove the
+// speed point of H2O on traditional SQL queires.
+
 
 /**
 

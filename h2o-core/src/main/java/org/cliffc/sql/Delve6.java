@@ -40,41 +40,16 @@ public class Delve6 implements TSMB.Delve {
     
     // Person Knows Persons.
     // Restructure to hash-of-hashes, or hash-of-(sparse_bit_set).
-    NonBlockingHashMapLong<NonBlockingHashMapLong> p1p2s = new NonBlockingHashMapLong<>();
     Vec p1 = TSMB.PERSON_KNOWS_PERSON.vec("person1id");
     Vec p2 = TSMB.PERSON_KNOWS_PERSON.vec("person2id");
-    Vec.Reader vrp1 = p1.new Reader();
-    Vec.Reader vrp2 = p2.new Reader();
-    for( int i=0; i<vrp1.length(); i++ ) {
-      long p1id = vrp1.at8(i);
-      long p2id = vrp2.at8(i);
-      NonBlockingHashMapLong p2s = p1p2s.get(p1id);
-      if( p2s==null ) {
-        p1p2s.putIfAbsent(p1id,new NonBlockingHashMapLong());
-        p2s = p1p2s.get(p1id);
-      }
-      p2s.put(p2id,"");         // Sparse-bit-set, just a hash with no value payload
-    }
-
-    print("P1P2s",p1p2s);
+    NonBlockingHashMapLong<NonBlockingHashMapLong> p1p2s = hash_of_hash("P1P2s",p1,p2);
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Restructure P1P2 "+(t-t0)+" msec"); t0=t; }
 
     // Person #Tags
     // Restructure to hash-of-hashes, or hash-of-(sparse_bit_set).
-    NonBlockingHashMapLong<NonBlockingHashMapLong> ptags = new NonBlockingHashMapLong<>();
-    Vec.Reader vrper = TSMB.PERSON_HASINTEREST_TAG.vec("id").new Reader();
-    Vec.Reader vrtag = TSMB.PERSON_HASINTEREST_TAG.vec("hasinterest_tag").new Reader();
-    for( int i=0; i<vrper.length(); i++ ) {
-      long per = vrper.at8(i);
-      long tag = vrtag.at8(i);
-      NonBlockingHashMapLong tags = ptags.get(per);
-      if( tags==null ) {
-        ptags.putIfAbsent(per,new NonBlockingHashMapLong());
-        tags = ptags.get(per);
-      }
-      tags.put(tag,"");         // Sparse-bit-set, just a hash with no value payload
-    }
-    print("PTAGS",ptags);
+    Vec vid = TSMB.PERSON_HASINTEREST_TAG.vec("id");
+    Vec vtg = TSMB.PERSON_HASINTEREST_TAG.vec("hasinterest_tag");
+    NonBlockingHashMapLong<NonBlockingHashMapLong> ptags = hash_of_hash("PTAGs",vid,vtg);
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Restructure P1P2 "+(t-t0)+" msec"); t0=t; }
 
     // ForAll P1s...
@@ -84,6 +59,25 @@ public class Delve6 implements TSMB.Delve {
     return cnt;
   }
 
+  NonBlockingHashMapLong<NonBlockingHashMapLong> hash_of_hash(String msg, Vec col0, Vec col1) {
+    NonBlockingHashMapLong<NonBlockingHashMapLong> nbhms = new NonBlockingHashMapLong<>();
+    Vec.Reader vr0 = col0.new Reader();
+    Vec.Reader vr1 = col1.new Reader();
+    for( int i=0; i<vr0.length(); i++ ) {
+      long c0 = vr0.at8(i);
+      long c1 = vr1.at8(i);
+      NonBlockingHashMapLong nbhm = nbhms.get(c0);
+      if( nbhm==null ) {
+        nbhms.putIfAbsent(c0,new NonBlockingHashMapLong());
+        nbhm = nbhms.get(c0);
+      }
+      nbhm.put(c1,"");         // Sparse-bit-set, just a hash with no value payload
+    }
+    print(msg,nbhms);
+    return nbhms;
+  }
+
+  
   private static class Count extends MRTask<Count> {
     long _cnt;
     final NonBlockingHashMapLong<NonBlockingHashMapLong> _p1p2s, _ptags;

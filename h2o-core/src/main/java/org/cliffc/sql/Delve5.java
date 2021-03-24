@@ -29,11 +29,19 @@ SF10 : 25.6234	15028644
 public class Delve5 implements TSMB.Delve {
   @Override public String name() { return "Delve5"; }
   static final boolean PRINT_TIMING = false;
+  
+  // Extra info: person-knows-person is symmetric.
+  // find triangles A<->B<->C<->A, where all 3 are in same country.
 
   // Query plan:
-  // Extra info: person-knows-person is symmetric.
-  //
-  // find triangles A<->B<->C<->A, where all 3 are in same country.
+  // Flip person->person to hash-of-hashs.
+  // Hash person->country
+  // ForAll P1s
+  //   Get country
+  //   ForAll P1.P2s
+  //     Check same country
+  //     ForAll P1.P2.P3s
+  //       check P1.P3 && same country
   
   
   @Override public long run() {

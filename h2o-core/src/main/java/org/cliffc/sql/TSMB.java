@@ -57,7 +57,7 @@ public class TSMB {
     System.out.println("Loading TPCH data for "+SCALE_FACTOR);
 
     //CITY = load("City");
-    //CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
+    CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
     //COMMENT = load("Comment");
     //COMMENT_HASTAG_TAG = load("Comment_hasTag_Tag");
     //COMPANY = load("Company");
@@ -68,7 +68,7 @@ public class TSMB {
     //FORUM = load("Forum");
     //FORUM_HASMEMBER_PERSON = load("Forum_hasMember_Person");
     //FORUM_HASTAG_TAG = load("Forum_hasTag_Tag");
-    //PERSON = load("Person");
+    PERSON = load("Person");
     PERSON_HASINTEREST_TAG = load("Person_hasInterest_Tag");
     PERSON_KNOWS_PERSON = load("Person_knows_Person");
     //PERSON_LIKES_COMMENT = load("Person_likes_Comment");
@@ -86,8 +86,8 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    //Delve[] delves = new Delve[]{new Delve1(),new Delve2(),new Delve3(),new Delve4(),new Delve5(),new Delve6(), new Delve7()};
-    Delve[] delves = new Delve[]{new Delve6()}; // DEBUG one query
+    //Delve[] delves = new Delve[]{new Delve5(),new Delve6()};
+    Delve[] delves = new Delve[]{new Delve5()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( Delve query : delves ) {
       System.out.println("--- "+query.name()+" ---");

@@ -2,6 +2,7 @@ package org.cliffc.sql;
 
 import water.*;
 import water.fvec.*;
+import water.nbhm.NonBlockingHashMapLong;
 import water.parser.*;
 import water.util.SB;
 import water.util.PrettyPrint;
@@ -46,7 +47,12 @@ public class TSMB {
   public static Frame TAG;
   public static Frame UNIVERSITY;
   public static Frame UNIVERSITY_ISLOCATEDIN_CITY;
-  private static int NSIZE, FSIZE;
+  private static int NSIZE, FSIZE; // Size on disk, in-memory
+
+  // Some pre-built relationships.
+
+  // Person-knows-person.  Hashed by person# to a sparse set of person#s.  Symmetric.
+  public static NonBlockingHashMapLong<NonBlockingHashMapLong> P_KNOWS_P;
   
   public static void main( String[] args ) throws IOException {
     H2O.main(new String[0]);
@@ -83,6 +89,15 @@ public class TSMB {
     //UNIVERSITY_ISLOCATEDIN_CITY = load("University_isLocatedIn_City");
     t = System.currentTimeMillis(); System.out.println("Data loaded; "+PrettyPrint.bytes(NSIZE)+" bytes in "+(t-t0)+" msec, Frames take "+PrettyPrint.bytes(FSIZE)); t0=t;
 
+    // ------------
+    // Build some shared common relationships.
+    
+    // Build person-knows-person as a hashtable from person# to a (hashtable of person#s).
+    // Symmetric.  2nd table is a sparse bitmap (no value).
+    Vec p1s = PERSON_KNOWS_PERSON.vec("person1id");
+    Vec p2s = PERSON_KNOWS_PERSON.vec("person2id");
+    P_KNOWS_P = new BuildP1P2().doAll(p1s,p2s)._p1p2s;    
+    t = System.currentTimeMillis(); System.out.println("Building shared hashes in "+(t-t0)+" msec"); t0=t;
 
     // ------------
     // Run all queries once
@@ -123,5 +138,31 @@ public class TSMB {
     FSIZE += fr.byteSize();
     return fr;
   }
-  
+
+  private static class BuildP1P2 extends MRTask<BuildP1P2> {
+    transient NonBlockingHashMapLong<NonBlockingHashMapLong> _p1p2s;
+    @Override protected void setupLocal() { _p1p2s = new NonBlockingHashMapLong<NonBlockingHashMapLong>(10000); }
+    @Override public void map(Chunk p1s, Chunk p2s ) {
+      for( int i=0; i<p1s._len; i++ ) {
+        long p1 = p1s.at8(i);
+        long p2 = p2s.at8(i);
+        build_hash(_p1p2s,p1,p2);
+        build_hash(_p1p2s,p2,p1);
+      }      
+    }
+    @Override public void reduce( BuildP1P2 bld ) {
+      if( _p1p2s != bld._p1p2s )
+        throw new RuntimeException("distributed reduce not implemented");
+    }
+  }
+
+  static void build_hash(NonBlockingHashMapLong<NonBlockingHashMapLong> nbhms, long c0, long c1) {
+    NonBlockingHashMapLong nbhm = nbhms.get(c0);
+    if( nbhm==null ) {
+      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong());
+      nbhm = nbhms.get(c0);
+    }
+    nbhm.put(c1,"");         // Sparse-bit-set, just a hash with no value payload
+  }
+
 }

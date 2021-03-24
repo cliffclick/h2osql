@@ -91,10 +91,10 @@ public class SQL {
     System.out.println();
 
     // Run all queries once
-    Query[] querys = new Query[]{new Query1(),new Query2(),new Query3(),new Query4(),new Query5(),new Query6(), new Query7()};
-    //Query[] querys = new Query[]{new Query8()}; // DEBUG one query
+    TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
+    //TPCH[] querys = new TPCH[]{new TPCH8()}; // DEBUG one query
     System.out.println("--- Run Once ---");
-    for( Query query : querys ) {
+    for( TPCH query : querys ) {
       System.out.println("--- "+query.name()+" ---");
       Frame q = query.run();
       System.out.println(q.toTwoDimTable());
@@ -104,7 +104,7 @@ public class SQL {
     }
 
     System.out.println("--- Run Many ---");
-    for( Query query : querys ) {
+    for( TPCH query : querys ) {
       System.out.print(query.name()+" ");
       for( int i=0; i<5; i++ ) {
         query.run().delete();
@@ -284,5 +284,5 @@ public class SQL {
     @Override public void reduce( VecEquals v ) { _eq |= v._eq; }
   }
 
-  public interface Query { Frame run(); String name(); }
+  public interface TPCH { Frame run(); String name(); }
 }

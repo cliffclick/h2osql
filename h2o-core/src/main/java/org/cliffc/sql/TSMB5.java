@@ -26,8 +26,8 @@ SF1  :  2.3345	  753570
 SF10 : 25.6234	15028644
 */
 
-public class Delve5 implements TSMB.Delve {
-  @Override public String name() { return "Delve5"; }
+public class TSMB5 implements TSMB.TSMBI {
+  @Override public String name() { return "TSMB5"; }
   static final boolean PRINT_TIMING = false;
   
   // Extra info: person-knows-person is symmetric.

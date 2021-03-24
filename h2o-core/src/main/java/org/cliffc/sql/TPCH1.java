@@ -39,8 +39,8 @@ order by
 
 */
 
-public class Query1 implements SQL.Query {
-  @Override public String name() { return "Query1"; }
+public class TPCH1 implements SQL.TPCH {
+  @Override public String name() { return "TPCH1"; }
   
   interface Fcn_IID { double run( int i, int j ); }
 

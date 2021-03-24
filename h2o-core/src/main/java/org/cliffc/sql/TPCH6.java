@@ -32,8 +32,8 @@ where
 
 */
 
-public class Query6 implements SQL.Query {
-  @Override public String name() { return "Query6"; }
+public class TPCH6 implements SQL.TPCH {
+  @Override public String name() { return "TPCH6"; }
   static final boolean PRINT_TIMING = false;
 
   static final long LOW_DATE  = new DateTime("1994-01-01",DateTimeZone.UTC).getMillis();

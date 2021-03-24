@@ -41,8 +41,8 @@ order by
 
 */
 
-public class Query4 implements SQL.Query {
-  @Override public String name() { return "Query4"; }
+public class TPCH4 implements SQL.TPCH {
+  @Override public String name() { return "TPCH4"; }
   
   static final long LOW_DATE  = new DateTime("1993-07-01",DateTimeZone.UTC).getMillis();
   static final long HIGH_DATE = new DateTime("1993-07-01",DateTimeZone.UTC).plusMonths(3).getMillis();

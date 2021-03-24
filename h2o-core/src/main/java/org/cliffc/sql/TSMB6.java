@@ -20,8 +20,8 @@ SF1  :  22.4546sec,  1596153418    4.2sec
 SF10 : 303.2664sec, 22851049394    7.6sec
 */
 
-public class Delve6 implements TSMB.Delve {
-  @Override public String name() { return "Delve6"; }
+public class TSMB6 implements TSMB.TSMBI {
+  @Override public String name() { return "TSMB6"; }
   static final boolean PRINT_TIMING = false;
 
   // Query plan:

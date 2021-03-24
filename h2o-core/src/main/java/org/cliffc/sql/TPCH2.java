@@ -60,8 +60,8 @@ order by
     p_partkey;
 */
 
-public class Query2 implements SQL.Query {
-  @Override public String name() { return "Query2"; }
+public class TPCH2 implements SQL.TPCH {
+  @Override public String name() { return "TPCH2"; }
   static final int SIZE=15;
   static final String TYPE="BRASS";
   static final String REGION="EUROPE";

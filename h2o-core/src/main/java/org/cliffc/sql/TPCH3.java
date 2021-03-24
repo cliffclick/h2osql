@@ -40,8 +40,8 @@ order by
 
 */
 
-public class Query3 implements SQL.Query {
-  @Override public String name() { return "Query3"; }
+public class TPCH3 implements SQL.TPCH {
+  @Override public String name() { return "TPCH3"; }
   
   static final String SEGMENT = "BUILDING";
   static final long SHIPPED_DATE = new DateTime("1995-03-15").getMillis();

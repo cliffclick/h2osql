@@ -86,10 +86,10 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    //Delve[] delves = new Delve[]{new Delve5(),new Delve6()};
-    Delve[] delves = new Delve[]{new Delve5()}; // DEBUG one query
+    //TSMBI[] delves = new TSMBI[]{new TSMB5(),new TSMB6()};
+    TSMBI[] delves = new TSMBI[]{new TSMB5()}; // DEBUG one query
     System.out.println("--- Run Once ---");
-    for( Delve query : delves ) {
+    for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");
       long cnt = query.run();
       System.out.println(cnt);
@@ -97,7 +97,7 @@ public class TSMB {
     }
 
     System.out.println("--- Run Many ---");
-    for( Delve query : delves ) {
+    for( TSMBI query : delves ) {
       System.out.print(query.name()+" ");
       for( int i=0; i<5; i++ ) {
         query.run();
@@ -109,7 +109,7 @@ public class TSMB {
     
     System.exit(0);
   }
-  public interface Delve { long run(); String name(); }
+  public interface TSMBI { long run(); String name(); }
 
   public static Frame load(String fname) throws IOException {
     NFSFileVec nfs = NFSFileVec.make(DIRNAME+fname+".csv");

@@ -51,8 +51,8 @@ order by
 
 */
 
-public class Query5 implements SQL.Query {
-  @Override public String name() { return "Query5"; }
+public class TPCH5 implements SQL.TPCH {
+  @Override public String name() { return "TPCH5"; }
   static final boolean PRINT_TIMING = false;
   
   static final long LOW_DATE  = new DateTime("1994-01-01",DateTimeZone.UTC).getMillis();

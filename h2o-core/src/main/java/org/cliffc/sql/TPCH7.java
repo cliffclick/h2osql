@@ -72,8 +72,8 @@ GERMANY                  |FRANCE                   |1996|379095.8854
 
 */
 
-public class Query7 implements SQL.Query {
-  @Override public String name() { return "Query7"; }
+public class TPCH7 implements SQL.TPCH {
+  @Override public String name() { return "TPCH7"; }
   static final boolean PRINT_TIMING = false;
 
   static final int YEAR=1995;

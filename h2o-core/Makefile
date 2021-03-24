@@ -105,14 +105,14 @@ $(main_classes): $(CLZDIR)/main/%class: $(SRC)/%java
 	@[ -d $(CLZDIR)/main ] || mkdir -p $(CLZDIR)/main
 	@rm -f files.txt
 	@echo $? > files.txt
-	@javac $(JAVAC_ARGS) -cp "$(CLZDIR)/main$(SEP)$(jars)" -sourcepath "$(SRC)" -d $(CLZDIR)/main @files.txt
+	@javac $(JAVAC_ARGS) -cp "$(CLZDIR)/main$(SEP)$(jars)" -sourcepath "$(SRC)$(SEP)$(WEB)$(SEP)$(GEN)" -d $(CLZDIR)/main @files.txt
 	@rm -f files.txt
 
 # Compile just the out-of-date files
 $(main_gen_classes): $(CLZDIR)/main/%class: $(GEN)/%java
-	@echo "Gcompiling " $@ " because " $?
+	@echo "compiling " $@ " because " $?
 	@[ -d $(CLZDIR)/main ] || mkdir -p $(CLZDIR)/main
-	javac $(JAVAC_ARGS) -cp "$(CLZDIR)/main$(SEP)$(jars)" -sourcepath "$(SRC)$(SEP)$(GEN)$(SEP)$(WEB)" -d $(CLZDIR)/main $?
+	@javac $(JAVAC_ARGS) -cp "$(CLZDIR)/main$(SEP)$(jars)" -sourcepath "$(SRC)$(SEP)$(GEN)$(SEP)$(WEB)" -d $(CLZDIR)/main $?
 
 # Compile just the out-of-date files
 $(main_tsp_classes): $(CLZDIR)/main/%class: $(TSP)/%java
@@ -123,7 +123,7 @@ $(main_tsp_classes): $(CLZDIR)/main/%class: $(TSP)/%java
 $(test_classes): $(CLZDIR)/test/%class: $(TST)/%java $(main_h2o_classes) $(main_tsp_classes)
 	@echo "compiling " $@ " because " $?
 	@[ -d $(CLZDIR)/test ] || mkdir -p $(CLZDIR)/test
-	javac $(JAVAC_ARGS) -cp "$(CLZDIR)/test$(SEP)$(CLZDIR)/main$(SEP)$(jars)" -sourcepath "$(TST)" -d $(CLZDIR)/test $(test_javas)
+	@javac $(JAVAC_ARGS) -cp "$(CLZDIR)/test$(SEP)$(CLZDIR)/main$(SEP)$(jars)" -sourcepath "$(TST)" -d $(CLZDIR)/test $(test_javas)
 
 
 
@@ -160,7 +160,7 @@ $(CLZDIR)/main/$(H2O)/BuildVersion.class: $(CLZDIR)/main/$(H2O)/BuildVersion.jav
 JARBITS =
 JARBITS += -C $(CLZDIR)/main .    # The java class files
 
-build/h2o.jar: $(main_classes) $(main_gen_classes) $(test_h2o_classes) $(CLZDIR)/main/$(H2O)/BuildVersion.class src/main/manifest.txt lib
+build/h2o.jar: $(main_classes) $(main_gen_classes) $(main_web_classes) $(main_tsp_classes) $(test_h2o_classes) $(CLZDIR)/main/$(H2O)/BuildVersion.class src/main/manifest.txt lib
 	@echo "  jarring " $@ " because " $?
 	@[ -d build ] || mkdir -p build
 # Build the h2o.jar file.  All included jars are unpacked into a flat structure,

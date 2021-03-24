@@ -64,8 +64,8 @@ SF-0.01 Validation
 
 */
 
-public class Query8 implements SQL.Query {
-  @Override public String name() { return "Query8"; }
+public class TPCH8 implements SQL.TPCH {
+  @Override public String name() { return "TPCH8"; }
   static final boolean PRINT_TIMING = false;
 
   //static final String NATION = "BRAZIL";

@@ -90,21 +90,4 @@ public class TSMB6 implements TSMB.TSMBI {
     }
     @Override public void reduce( Count C ) { _cnt += C._cnt; }
   }
-  
-  private static void print(String msg, NonBlockingHashMapLong<NonBlockingHashMapLong> p2xs) {
-    long sum=0,sum2=0;
-    long min=Long.MAX_VALUE;
-    long max=0;
-    for( NonBlockingHashMapLong p2x : p2xs.values() ) {
-      long size = p2x.size();
-      sum  += size;
-      sum2 += size*size;
-      if( size < min ) min = size;
-      if( size > max ) max = size;
-    }
-    long size = p2xs.size();
-    double avg = (double)sum/size;
-    double std = Math.sqrt((double)sum2/size);
-    System.out.println(msg+": "+size+", avg="+avg+", min="+min+", max="+max+", stddev="+std);
-  }
 }

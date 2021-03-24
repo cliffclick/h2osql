@@ -18,7 +18,7 @@ import java.io.File;
 
 public class TSMB {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf10";
+  public static final String SCALE_FACTOR = "sf1";
   public static final String DIRNAME = "c:/Users/cliffc/Desktop/TSMB_DATA/social-network-"+SCALE_FACTOR+"-merged-fk/";
 
   // The TSMB Data
@@ -47,7 +47,7 @@ public class TSMB {
   public static Frame TAG;
   public static Frame UNIVERSITY;
   public static Frame UNIVERSITY_ISLOCATEDIN_CITY;
-  private static int NSIZE, FSIZE; // Size on disk, in-memory
+  private static long NSIZE, FSIZE; // Size on disk, in-memory
 
   // Some pre-built relationships.
 
@@ -82,8 +82,8 @@ public class TSMB {
     //PERSON_LIKES_POST = load("Person_likes_Post");
     //PERSON_STUDYAT_UNIVERSITY = load("Person_studyAt_University");
     //PERSON_WORKAT_COMPANY = load("Person_workAt_Company");
-    //POST = load("Post");
-    //POST_HASTAG_TAG = load("Post_hasTag_Tag");
+    POST = load("Post");
+    POST_HASTAG_TAG = load("Post_hasTag_Tag");
     //TAGCLASS = load("TagClass");
     //TAG = load("Tag");
     //UNIVERSITY = load("University");
@@ -112,8 +112,8 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
-    //TSMBI[] delves = new TSMBI[]{new TSMB1()}; // DEBUG one query
+    //TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB3(), new TSMB5(),new TSMB6()};
+    TSMBI[] delves = new TSMBI[]{new TSMB3()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");
@@ -170,10 +170,28 @@ public class TSMB {
   static void build_hash(NonBlockingHashMapLong<NonBlockingHashMapLong> nbhms, long c0, long c1) {
     NonBlockingHashMapLong nbhm = nbhms.get(c0);
     if( nbhm==null ) {
-      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong());
+      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong(8));
       nbhm = nbhms.get(c0);
     }
     nbhm.put(c1,"");         // Sparse-bit-set, just a hash with no value payload
+  }
+
+  // Summary printer for hash-of-hashes.
+  static void print(String msg, NonBlockingHashMapLong<NonBlockingHashMapLong> p2xs) {
+    long sum=0,sum2=0;
+    long min=Long.MAX_VALUE;
+    long max=0;
+    for( NonBlockingHashMapLong p2x : p2xs.values() ) {
+      long size = p2x.size();
+      sum  += size;
+      sum2 += size*size;
+      if( size < min ) min = size;
+      if( size > max ) max = size;
+    }
+    long size = p2xs.size();
+    double avg = (double)sum/size;
+    double std = Math.sqrt((double)sum2/size);
+    System.out.println(msg+": "+size+", avg="+avg+", min="+min+", max="+max+", stddev="+std);
   }
 
 }

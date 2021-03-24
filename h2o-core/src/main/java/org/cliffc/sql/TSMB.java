@@ -18,7 +18,7 @@ import java.io.File;
 
 public class TSMB {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf0.1";
+  public static final String SCALE_FACTOR = "sf10";
   public static final String DIRNAME = "c:/Users/cliffc/Desktop/TSMB_DATA/social-network-"+SCALE_FACTOR+"-merged-fk/";
 
   // The TSMB Data
@@ -65,8 +65,8 @@ public class TSMB {
 
     CITY = load("City");
     //CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
-    //COMMENT = load("Comment");
-    //COMMENT_HASTAG_TAG = load("Comment_hasTag_Tag");
+    COMMENT = load("Comment");
+    COMMENT_HASTAG_TAG = load("Comment_hasTag_Tag");
     //COMPANY = load("Company");
     //COMPANY_ISLOCATEDIN_COUNTRY = load("Company_isLocatedIn_Country");
     //CONTINENT = load("Continent");
@@ -112,8 +112,8 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    //TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
-    TSMBI[] delves = new TSMBI[]{new TSMB1()}; // DEBUG one query
+    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
+    //TSMBI[] delves = new TSMBI[]{new TSMB1()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");

@@ -14,10 +14,10 @@ def q6 = count[person1, person2, person3, tag:
     and not(person_knows_person(person1, person3))
 ]
 
-Umbra,                             H2O
-SF0.1:   0.3401sec,    51009398    0.03sec
-SF1  :  22.4546sec,  1596153418    4.2sec
-SF10 : 303.2664sec, 22851049394    7.6sec
+            Answer  Umbra 1 thrd  Umbra 48thrd   H2O 20thrd
+SF0.1:    51009398    0.3401 sec    0.0298 sec     0.03 sec
+SF1  :  1596153418   22.4546 sec    0.7598 sec     4.20 sec
+SF10 : 22851049394  303.2664 sec   10.4135 sec     7.60 sec
 */
 
 public class TSMB6 implements TSMB.TSMBI {

@@ -20,10 +20,10 @@ def q5 = count[cityA, cityB, cityC, country, pA, pB, pC:
     and person_knows_person(pC, pA)
 ]
 
-Umbra,                        H2O
-SF0.1:   0.117	   30456    0.007sec
-SF1  :  2.3345	  753570    0.018sec
-SF10 : 25.6234	15028644    0.540sec
+          Answer  Umbra 1 thrd  Umbra 48thrd   H2O 20thrd
+SF0.1:     30456     0.117 sec    0.0349 sec    0.007 sec
+SF1  :    753570    2.3345 sec    0.2094 sec    0.018 sec
+SF10 :  15028644   25.6234 sec    1.1867 sec    0.540 sec
 */
 
 public class TSMB5 implements TSMB.TSMBI {
@@ -41,7 +41,6 @@ public class TSMB5 implements TSMB.TSMBI {
   //     Check same country
   //     ForAll P1.P2.P3s
   //       check P1.P3 && same country
-  
   
   @Override public long run() {
     long t0 = System.currentTimeMillis(), t;

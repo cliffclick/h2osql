@@ -18,7 +18,7 @@ import java.io.File;
 
 public class TSMB {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf0.1";
+  public static final String SCALE_FACTOR = "sf10";
   public static final String DIRNAME = "c:/Users/cliffc/Desktop/TSMB_DATA/social-network-"+SCALE_FACTOR+"-merged-fk/";
 
   // The TSMB Data
@@ -53,6 +53,7 @@ public class TSMB {
 
   // Person-knows-person.  Hashed by person# to a sparse set of person#s.  Symmetric.
   public static NonBlockingHashMapLong<NonBlockingHashMapLong> P_KNOWS_P;
+  public static NonBlockingHashMapLong<Long> CITY_COUNTRY;
   
   public static void main( String[] args ) throws IOException {
     H2O.main(new String[0]);
@@ -62,8 +63,8 @@ public class TSMB {
     long t0 = System.currentTimeMillis(), t;
     System.out.println("Loading TPCH data for "+SCALE_FACTOR);
 
-    //CITY = load("City");
-    CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
+    CITY = load("City");
+    //CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
     //COMMENT = load("Comment");
     //COMMENT_HASTAG_TAG = load("Comment_hasTag_Tag");
     //COMPANY = load("Company");
@@ -96,13 +97,23 @@ public class TSMB {
     // Symmetric.  2nd table is a sparse bitmap (no value).
     Vec p1s = PERSON_KNOWS_PERSON.vec("person1id");
     Vec p2s = PERSON_KNOWS_PERSON.vec("person2id");
-    P_KNOWS_P = new BuildP1P2().doAll(p1s,p2s)._p1p2s;    
+    P_KNOWS_P = new BuildP1P2().doAll(p1s,p2s)._p1p2s;
+
+    // Hash from city to country
+    CITY_COUNTRY = new NonBlockingHashMapLong<>();
+    Vec city = CITY.vec("id");
+    Vec cnty = CITY.vec("ispartof_country");
+    Vec.Reader vrcity = city.new Reader();
+    Vec.Reader vrcnty = cnty.new Reader();
+    for( int i=0; i<vrcity.length(); i++ )
+      CITY_COUNTRY.put((long)vrcity.at8(i),(Long)vrcnty.at8(i));
+    
     t = System.currentTimeMillis(); System.out.println("Building shared hashes in "+(t-t0)+" msec"); t0=t;
 
     // ------------
     // Run all queries once
-    //TSMBI[] delves = new TSMBI[]{new TSMB5(),new TSMB6()};
-    TSMBI[] delves = new TSMBI[]{new TSMB5()}; // DEBUG one query
+    TSMBI[] delves = new TSMBI[]{new TSMB5(),new TSMB6()};
+    //TSMBI[] delves = new TSMBI[]{new TSMB5()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");

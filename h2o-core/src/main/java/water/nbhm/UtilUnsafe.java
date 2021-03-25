@@ -1,4 +1,5 @@
 package water.nbhm;
+  
 import java.lang.reflect.Field;
 
 import sun.misc.Unsafe;
@@ -13,6 +14,7 @@ import sun.misc.Unsafe;
  */
 public class UtilUnsafe {
   private UtilUnsafe() { } // dummy private constructor
+  static final Unsafe UNSAFE = getUnsafe();
   /** Fetch the Unsafe.  Use With Caution. */
   public static Unsafe getUnsafe() {
     // Not on bootclasspath
@@ -25,5 +27,12 @@ public class UtilUnsafe {
     } catch (Exception e) {
       throw new RuntimeException("Could not obtain access to sun.misc.Unsafe", e);
     }
+  }
+
+  static final long fieldOffset( Class clz, String field ) {
+    Field f = null;
+    try { f = clz.getDeclaredField(field); }
+    catch( java.lang.NoSuchFieldException e ) { throw new RuntimeException(e); }
+    return UNSAFE.objectFieldOffset(f);
   }
 }

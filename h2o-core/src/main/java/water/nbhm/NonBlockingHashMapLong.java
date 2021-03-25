@@ -400,6 +400,16 @@ public class NonBlockingHashMapLong<TypeV>
     topchm.help_copy_impl(false);
   }
 
+  // --- hash ----------------------------------------------------------------
+  // Helper function to spread lousy hashCodes Throws NPE for null Key, on
+  // purpose - as the first place to conveniently toss the required NPE for a
+  // null Key.
+  private static final int hash(long h) {
+    h ^= (h>>>20) ^ (h>>>12);
+    h ^= (h>>> 7) ^ (h>>> 4);
+    h += h<<7; // smear low bits up high, for hashcodes that only differ by 1
+    return (int)h;
+  }
 
   // --- CHM -----------------------------------------------------------------
   // The control structure for the NonBlockingHashMapLong
@@ -506,8 +516,9 @@ public class NonBlockingHashMapLong<TypeV>
     // --- get_impl ----------------------------------------------------------
     // Never returns a Prime nor a Tombstone.
     private final Object get_impl ( final long key ) {
+      final int hash = hash(key);
       final int len     = _keys.length;
-      int idx = (int)(key & (len-1)); // First key hash
+      int idx = (int)(hash & (len-1)); // First key hash
 
       // Main spin/reprobe loop, looking for a Key hit
       int reprobe_cnt=0;
@@ -552,11 +563,12 @@ public class NonBlockingHashMapLong<TypeV>
     // Only the path through copy_slot passes in an expected value of null,
     // and putIfMatch only returns a null if passed in an expected null.
     private final Object putIfMatch( final long key, final Object putval, final Object expVal ) {
+      final int hash = hash(key);
       assert putval != null;
       assert !(putval instanceof Prime);
       assert !(expVal instanceof Prime);
       final int len      = _keys.length;
-      int idx = (int)(key & (len-1)); // The first key
+      int idx = (int)(hash & (len-1)); // The first key
 
       // ---
       // Key-Claim stanza: spin till we can claim a Key (or force a resizing).

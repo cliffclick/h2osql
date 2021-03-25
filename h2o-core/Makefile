@@ -265,7 +265,7 @@ tpch:	build/h2o.jar
 
 .PHONY: tsmb
 tsmb:	build/h2o.jar
-	java -ea -cp "$?$(SEP)$(jars)" org.cliffc.sql.TSMB
+	java -ea -Xmx16G -Xms16G -XX:+UseParallelGC -verbose:gc -cp "$?$(SEP)$(jars)" org.cliffc.sql.TSMB
 
 # Build emacs tags (part of a tasty emacs ide experience)
 tags:	$(main_h2o_javas) $(test_h2o_javas)

@@ -148,6 +148,17 @@ public final class SB implements JCodeSB<SB> {
     _sb.append(sb.getContent());
     return this;
   }
+
+  // Delete last char.  Useful when doing string-joins and JSON printing and an
+  // extra seperater char needs to be removed:
+  //
+  //   sb.p('[');
+  //   for( Foo foo : foos )
+  //     sb.p(foo).p(',');
+  //   sb.unchar().p(']');  // remove extra trailing comma
+  //
+  public SB unchar() { _sb.setLength(_sb.length()-1); return this; }  
+  
   @Override public String toString() { return _sb.toString(); }
 
   /** Java-string illegal characters which need to be escaped */

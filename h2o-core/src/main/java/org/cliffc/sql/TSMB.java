@@ -18,7 +18,7 @@ import java.io.File;
 
 public class TSMB {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf1";
+  public static final String SCALE_FACTOR = "sf0.1";
   public static final String DIRNAME = "c:/Users/cliffc/Desktop/TSMB_DATA/social-network-"+SCALE_FACTOR+"-merged-fk/";
 
   // The TSMB Data
@@ -170,7 +170,7 @@ public class TSMB {
   static void build_hash(NonBlockingHashMapLong<NonBlockingHashMapLong> nbhms, long c0, long c1) {
     NonBlockingHashMapLong nbhm = nbhms.get(c0);
     if( nbhm==null ) {
-      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong(8));
+      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong(4));
       nbhm = nbhms.get(c0);
     }
     nbhm.put(c1,"");         // Sparse-bit-set, just a hash with no value payload
@@ -194,4 +194,22 @@ public class TSMB {
     System.out.println(msg+": "+size+", avg="+avg+", min="+min+", max="+max+", stddev="+std);
   }
 
+
+  // Summary printer for hash-of-hashes.
+  static void printA(String msg, NonBlockingHashMapLong<AryInt> p2xs) {
+    long sum=0,sum2=0;
+    long min=Long.MAX_VALUE;
+    long max=0;
+    for( AryInt p2x : p2xs.values() ) {
+      int size = p2x._len;
+      sum  += size;
+      sum2 += size*size;
+      if( size < min ) min = size;
+      if( size > max ) max = size;
+    }
+    long size = p2xs.size();
+    double avg = (double)sum/size;
+    double std = Math.sqrt((double)sum2/size);
+    System.out.println(msg+": "+size+", avg="+avg+", min="+min+", max="+max+", stddev="+std);
+  }
 }

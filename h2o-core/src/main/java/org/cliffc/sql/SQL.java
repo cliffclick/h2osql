@@ -14,13 +14,13 @@ import java.io.IOException;
 
 public class SQL {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf-0.01";
+  public static final String SCALE_FACTOR = "sf-1";
 
   // The TPCH Schema
   // Always first column is the index column, and is just a number.
   // If a column name appears in another dataset, it refers via index.
   public static final Table CUSTOMER = new Table("customer",new String[]{"custkey","name","c_address","nationkey","phone","acctbal","mktsegment","c_comment"},new String[]{"c_address","c_comment"});
-  public static final Table LINEITEM = new Table("lineitem",new String[]{"orderkey","partkey","suppkey","linenumber","quantity","extendedprice","discount","tax","returnflag","linestatus","shipdate","commitdate","receiptdate","shipinstruct","shipmode","comment"},new String[]{"comment"});
+  public static final Table LINEITEM = new Table("lineitem",new String[]{"orderkey","partkey","suppkey","linenumber","quantity","extendedprice","discount","tax","returnflag","linestatus","shipdate","commitdate","receiptdate","shipinstruct","shipmode","l_comment"},new String[]{"l_comment"});
   public static final Table NATION   = new Table("nation",new String[]{"nationkey","n_name","regionkey","n_comment"},new String[]{"n_comment"});
   public static final Table ORDERS   = new Table("orders",new String[]{"orderkey","custkey","orderstatus","totalprice","orderdate","orderpriority","clerk","shippriority","o_comment"},new String[]{"o_comment"});
   public static final Table PART     = new Table("part",new String[]{"partkey","p_name","mfgr","brand","type","size","container","retailprice","p_comment"},new String[]{"p_comment"});
@@ -77,6 +77,11 @@ public class SQL {
     nation  .vec("n_name").setDomain(ndom);
     customer.vec("n_name").setDomain(ndom);
     supplier.vec("n_name").setDomain(ndom);
+
+    // Verify suppliers suppkey is also the row number
+    Vec.Reader vsupp = supplier.vec("suppkey").new Reader();
+    for( int i=0; i<vsupp.length(); i++ )
+      assert vsupp.at8(i)==i+1;
     
     long loaded = System.currentTimeMillis();
     System.out.println("Data loaded in "+(loaded-t)+" msec"); t=loaded;
@@ -92,23 +97,24 @@ public class SQL {
 
     // Run all queries once
     TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
-    //TPCH[] querys = new TPCH[]{new TPCH8()}; // DEBUG one query
+    //TPCH[] querys = new TPCH[]{new TPCH5()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TPCH query : querys ) {
       System.out.println("--- "+query.name()+" ---");
       Frame q = query.run();
       System.out.println(q.toTwoDimTable());
-      q.delete();
       long t_q = System.currentTimeMillis();
+      q.delete();
       System.out.println("--- "+query.name()+" "+(t_q-t)+" msec ---"); t=t_q;
     }
 
     System.out.println("--- Run Many ---");
     for( TPCH query : querys ) {
       System.out.print(query.name()+" ");
-      for( int i=0; i<5; i++ ) {
-        query.run().delete();
+      for( int i=0; i<10; i++ ) {
+        Frame fr = query.run();
         long t_q = System.currentTimeMillis();
+        fr.delete();
         System.out.print(""+(t_q-t)+" msec, "); t=t_q;
       }
       System.out.println();

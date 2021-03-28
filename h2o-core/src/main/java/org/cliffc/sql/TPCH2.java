@@ -60,11 +60,35 @@ order by
     n_name,
     s_name,
     p_partkey;
+
+Validation, SF=0.01
+4186.95|Supplier#000000077 |GERMANY | 249|Manufacturer#4 |wVtcr0uH3CyrSiWMLsqnB09Syo,UuZxPMeBghlY|17-281-345-4863 |the slyly final asymptotes. blithely pending theodoli
+1883.37|Supplier#000000086 |ROMANIA |1015|Manufacturer#4 |J1fgg5QaqnN                            |29-903-665-7065 |cajole furiously special, final requests: furiously spec
+1687.81|Supplier#000000017 |ROMANIA |1634|Manufacturer#2 |c2d,ESHRSkK3WYnxpgw6aOqN0q             |29-601-884-9219 |eep against the furiously bold ideas. fluffily bold packa
+ 287.16|Supplier#000000052 |ROMANIA | 323|Manufacturer#4 |WCk XCHYzBA1dvJDSol4ZJQQcQN,           |29-974-934-4713 |dolites are slyly against the furiously regular packages. ironic, final deposits cajole quickly
+
+Validation, SF=1
+Frame null (460 rows and 8 cols):
+                    acctbal              s_name          n_name                               s_address            phone                                                                                      s_comment            partkey            mfgr
+      0             9938.53  Supplier#000005359  UNITED KINGDOM                QKuHYh,vZGiwu2FWEJoLDx04  33-429-790-6131                                                                  uriously regular requests hag             185358  Manufacturer#4
+      1             9937.84  Supplier#000005969         ROMANIA       ANDENSOSmk,miq23Xfb5RWt6dvUcvt6Qa  29-520-692-3537                            efully express instructions. regular requests against the slyly fin             108438  Manufacturer#1
+      2             9936.22  Supplier#000005250  UNITED KINGDOM                   B3rqp0xbSEim4Mpy2RH J  33-320-228-2957  etect about the furiously final accounts. slyly ironic pinto beans sleep inside the furiously                249  Manufacturer#4
+      3             9923.77  Supplier#000002324         GERMANY                            y3OD9UywSTOk  17-779-299-1839                                            ackages boost blithely. blithely regular deposits c              29821  Manufacturer#4
+      4             9871.22  Supplier#000006373         GERMANY                              J8fcXWsTqM  17-813-485-8637                 etect blithely bold asymptotes. fluffily ironic platelets wake furiously; blit              43868  Manufacturer#5
+      5             9870.78  Supplier#000001286         GERMANY   YKA,E2fjiVd7eUrzp2Ef8j1QxGo2DFnosaTEH  17-516-924-4574                                        regular accounts. furiously unusual courts above the fi              81285  Manufacturer#2
+      6             9870.78  Supplier#000001286         GERMANY   YKA,E2fjiVd7eUrzp2Ef8j1QxGo2DFnosaTEH  17-516-924-4574                                        regular accounts. furiously unusual courts above the fi             181285  Manufacturer#4
+      7             9852.52  Supplier#000008973          RUSSIA                t5L67YdBYYH6o,Vz24jpDyQ9  32-188-594-7038                                                rns wake final foxes. carefully unusual depende              18972  Manufacturer#2
+      8             9847.83  Supplier#000008097          RUSSIA                       xMe97bpE69NzdwLoX  32-375-640-3593                                the special excuses. silent sentiments serve carefully final ac             130557  Manufacturer#2
+      9             9847.57  Supplier#000006345          FRANCE  VSt3rzk3qG698u6ld8HhOByvrTcSTSvQlDQDag  16-886-766-7945      ges. slyly regular requests are. ruthless, express excuses cajole blithely across the unu              86344  Manufacturer#1
+
+      SF0.01  SF1    SF10
+Umbra         0.011
+H2O   0.003   0.012
 */
 
 public class TPCH2 implements SQL.TPCH {
   @Override public String name() { return "TPCH2"; }
-  static final boolean PRINT_TIMING = true;
+  static final boolean PRINT_TIMING = false;
   static final int SIZE=15;
   static final String TYPE="BRASS";
   static final String REGION="EUROPE";
@@ -98,30 +122,57 @@ public class TPCH2 implements SQL.TPCH {
 
     // - hash/join N_R + SUPPLIER on nationkey; card==20k; result is set of suppkeys.
     Frame supplier = SQL.SUPPLIER.frame();
-    NonBlockingHashMapLong suppkeys = new NRS(nationkeys).doAll(supplier.vec("n_name"),supplier.vec("suppkey"))._suppkeys;
+    Vec s_n_name = supplier.vec("n_name");
+    NonBlockingHashMapLong suppkeys = new NRS(nationkeys).doAll(s_n_name)._suppkeys;
     if( PRINT_TIMING ) { long t=System.currentTimeMillis(); System.out.println("NRS#"+(suppkeys.size())+", "+(t-t0)+" msec"); t0=t; }
 
-    // - Filter PART by SIZE & TYPE; card=2k; result is a set of partkeys
-    // Filter out unexciting part columns; keep whats needed the query.
-    Frame part = SQL.PART.frame();
     // Compute the categoricals containing TYPE
+    Frame part = SQL.PART.frame();
     String[] types = part.vec("type").domain();
     boolean[] is_type = new boolean[types.length];
     for( int i=0; i<types.length; i++ )
       is_type[i] = types[i].contains(TYPE);
     
-    NonBlockingHashMapLong partkeys = new FilterPart2(is_type).doAll(part.subframe(new String[]{"partkey", "type", "size"}))._partkeys;
+    // - Filter PART by SIZE & TYPE; card=2k; result is a set of partkeys
+    // Filter out unexciting part columns; keep whats needed the query.
+    NonBlockingHashMapLong partkeys = new FilterPart2(is_type).doAll(part.vec("type"),part.vec("size"))._partkeys;
     if( PRINT_TIMING ) { long t=System.currentTimeMillis(); System.out.println("PARTS#"+(partkeys.size())+", "+(t-t0)+" msec"); t0=t; }
-    
-    // - hash/join filtered PART + PARTSUPP on partkey
-    //   card=7k; result is set of psuppkey
-    Frame partsupp = SQL.PARTSUPP.frame();
-    NonBlockingHashMapLong psuppkeys = new P_PS(partkeys).doAll(partsupp.subframe(new String[]{"partkey", "suppkey"}))._psuppkeys;
-    if( PRINT_TIMING ) { long t=System.currentTimeMillis(); System.out.println("P_PS#"+(psuppkeys.size())+", "+(t-t0)+" msec"); t0=t; }
 
+    // - hash/join PARTSUPP + N_R_S on suppkey; filter by partkey also (reduces resulting map by 250x);
+    //   - groupby on partkey, min of ps_supplycost; card=144k
+    //   Result is map partkey->{min ps_supplycost}
+    Frame partsupp = SQL.PARTSUPP.frame();
+    Frame partsupp1 = partsupp.subframe(new String[]{"partkey", "suppkey","supplycost"});
+    NonBlockingHashMapLong<Long> mins = new MinCost2(partkeys,suppkeys).doAll(partsupp1)._mins;
+    if( PRINT_TIMING ) { long t=System.currentTimeMillis(); System.out.println("MINCOST#"+(mins.size())+", "+(t-t0)+" msec"); t0=t; }
+
+    // Format
+    // Deep-slice the suppliers by selected columns and rows
+    int len = mins.size(), row=0;
+    long[] xrows = new long[len];
+    for( Long pack : mins.values() )   xrows[row++] = pack2suppkey(pack)-1;
+    long[] xcols = new long[]{ supplier.find("acctbal"  ), supplier.find("s_name"), supplier.find("n_name"),
+                               supplier.find("s_address"), supplier.find("phone" ), supplier.find("s_comment") };
+    Frame fr = supplier.deepSlice(xrows,xcols);
+    // Add matching partkey,mfgr
+    Vec p_mfgr = part.vec("mfgr");
+    Vec.Reader vrp_mfgr = p_mfgr.new Reader();
+    row=0;
+    long[] p_pkeys = new long[len];
+    long[] p_mfgrs = new long[len];
+    for( long partkey : mins.keySetLong() ) {
+      p_pkeys[row  ] = partkey;
+      p_mfgrs[row++] = vrp_mfgr.at8(partkey-1);
+    }
+    fr.add("partkey",Vec.makeVec(p_pkeys ,null             ,Vec.newKey()));
+    fr.add("mfgr"   ,Vec.makeVec(p_mfgrs ,p_mfgr  .domain(),Vec.newKey()));
+    // Sort by acctbal
+    Frame rez = Merge.sort(fr,fr.find(new String[]{"acctbal",       "n_name",       "s_name",       "partkey"}),
+                                      new int[]   {Merge.DESCENDING,Merge.ASCENDING,Merge.ASCENDING,Merge.ASCENDING});
+    fr.delete();
+    if( PRINT_TIMING ) { long t=System.currentTimeMillis(); System.out.println("Format#"+(rez.numRows())+", "+(t-t0)+" msec"); t0=t; }
     
-    
-    return null;
+    return rez;
   }
 
   // Filter suppliers by nation.  Result is a set of suppliers.
@@ -130,11 +181,12 @@ public class TPCH2 implements SQL.TPCH {
     final BitSet _nationkeys;
     NRS( BitSet nationkeys ) { _nationkeys = nationkeys; }
     @Override protected void setupLocal() { _suppkeys = new NonBlockingHashMapLong(); }
-    @Override public void map( Chunk n_names, Chunk suppkeys ) {
+    @Override public void map( Chunk n_names ) {
+      long start = n_names.start();
       for( int i=0; i<n_names._len; i++ ) {
         int nationkey = (int)n_names.at8(i);
         if( _nationkeys.get(nationkey) )
-          _suppkeys.put((long)suppkeys.at8(i),"");
+          _suppkeys.put(start+i+1/*(long)suppkeys.at8(i)*/,"");
       }
     }
     @Override public void reduce( NRS bld ) {
@@ -149,10 +201,11 @@ public class TPCH2 implements SQL.TPCH {
     final boolean[] _is_type;
     FilterPart2(boolean[] is_type) { _is_type = is_type; }
     @Override protected void setupLocal() { _partkeys = new NonBlockingHashMapLong(); }
-    @Override public void map( Chunk partkeys, Chunk types, Chunk sizes ) {
+    @Override public void map( Chunk types, Chunk sizes ) {
+      long start = types.start();
       for( int i=0; i<types._len; i++ )
         if( sizes.at8(i)==SIZE && _is_type[(int)types.at8(i)] )
-          _partkeys.put((long)partkeys.at8(i),"");
+          _partkeys.put(start+i+1/*(long)partkeys.at8(i)*/,"");
     }
     @Override public void reduce( FilterPart2 bld ) {
       if( _partkeys != bld._partkeys )
@@ -160,155 +213,72 @@ public class TPCH2 implements SQL.TPCH {
     }
   }
 
-  // Filter suppliers by nation.  Result is a set of suppliers.
-  private static class P_PS extends MRTask<P_PS> {
-    transient NonBlockingHashMapLong _psuppkeys;
+  // Walk PARTSUPP, filter by suppliers from the correct nations and by
+  // partkeys that match the size & type; group-by partkey and find the min
+  // ps_supplycost.  Result is a map->{min(packed supplycost+suppkey)}.
+  // Filtering by parts also reduces the result map by 250x.
+  private static class MinCost2 extends MRTask<MinCost2> {
+    transient NonBlockingHashMapLong<Long> _mins;
     final NonBlockingHashMapLong _partkeys;
-    P_PS( NonBlockingHashMapLong partkeys ) { _partkeys = partkeys; }
-    @Override protected void setupLocal() { _psuppkeys = new NonBlockingHashMapLong(); }
-    @Override public void map( Chunk partkeys, Chunk suppkeys ) {
-      for( int i=0; i<partkeys._len; i++ ) {
-        int partkey = (int)partkeys.at8(i);
-        if( _partkeys.containsKey(partkey) )
-          _psuppkeys.put((long)suppkeys.at8(i),"");
+    final NonBlockingHashMapLong _suppkeys;
+    MinCost2( NonBlockingHashMapLong partkeys, NonBlockingHashMapLong suppkeys ) { _partkeys=partkeys; _suppkeys=suppkeys; }
+    @Override protected void setupLocal() { _mins = new NonBlockingHashMapLong<>(); }
+    @Override public void map( Chunk[] cs ) {
+      Chunk partkeys = cs[0];
+      Chunk suppkeys = cs[1];
+      Chunk supcosts = cs[2];
+      // The Main Hot Loop
+      for( int i=0; i<suppkeys._len; i++ ) {
+        long suppkey = suppkeys.at8(i);
+        long partkey = partkeys.at8(i);
+        if( _partkeys.containsKey(partkey) && _suppkeys.containsKey(suppkey) ) {
+          double cost  = supcosts.atd(i);
+          Long pack = _mins.get(partkey);
+          if( pack==null || cost<pack2suppcost(pack) )
+            _mins.put(partkey,(Long)suppkey2pack(suppkey,cost));
+        }
       }
     }
-    @Override public void reduce( P_PS bld ) {
-      if( _psuppkeys != bld._psuppkeys )
+    @Override public void reduce(MinCost2 mc) {
+      if( _mins != mc._mins )
         throw new RuntimeException("distributed reduce not implemented");
     }
   }
-
-
-
-
+  // Pack a suppkey & suppcost in a long
+  private static long suppkey2pack( long suppkey, double cost ) {
+    int costi = (int)cost*100;
+    assert Math.abs(((double)costi)/100-cost) < 1e-10;
+    int suppi = (int)suppkey;
+    assert suppi==suppkey;
+    return (((long)suppi)<<32)|costi;
+  }
+  // Unpack a suppkey from a packed suppkey
+  private static int pack2suppkey( long pack ) { return (int)(pack>>32); }
+  private static double pack2suppcost( long pack ) { return ((double)((int)pack))/100; }
+ 
   
-  // --------------------- OLD QUERY PLAN
-  // Query plan:
-  // Filter parts by SIZE and TYPE.  This is like a 5%-pass filter.
-  // JOIN filtered parts with [nation,region,supplier,partsupp] on partkey
-  // Find min partsupp.supplycost grouped-by part - coult move the region filter here.
-  // Filter again by min supplycost-per-part and region.
-  // Sort by supplier.acctbal/nation/supplier/partkey; report top 100.
-  public Frame run_prior() {
-    // Filter out unexciting part columns; keep whats needed for reporting and the query.
-    Frame part0 = SQL.PART.frame();
-    Frame part1 = part0.subframe(PARTCOLS);
-    
-    // Compute the categoricals containing TYPE
-    String[] types = part1.vec("type").domain();
-    boolean[] is_type = new boolean[types.length];
-    for( int i=0; i<types.length; i++ )
-      is_type[i] = types[i].contains(TYPE);
-
-    // Filter parts to matching SIZE and TYPE
-    int[] p3cols = new int[]{PARTIDX,MFGRIDX};
-    Frame part2 = new FilterPart(is_type).doAll(part1.types(p3cols),part1).outputFrame(part1.names(p3cols),part1.domains(p3cols));
-    // Repack the (very) sparse result into fewer chunks
-    Frame part3 = SQL.compact(part2);
-
-    // Filter the big join to just the exciting columns
-    Frame bigjoin = SQL.NATION_REGION_SUPPLIER_PARTSUPP.subframe(MINCOLS);
-    
-    // JOIN with NATION_REGION_SUPPLIER_PARTSUPP
-    Frame partsjoin = SQL.join(bigjoin,part3);
-    part3.delete();
-    
-    // Find the minimum supplycost-per-part.  Treated as small data.
-    int region = ArrayUtils.find(partsjoin.vec("r_name").domain(),REGION);
-    NonBlockingHashMapLong<Double> mins = new MinCost(region).doAll(partsjoin)._mins;
-    
-    // Filter again to matching supplycost & region.  Keep the first 8 cols
-    // only, dropping r_name and supplycost.
-    Vec r_name = partsjoin.remove("r_name");
-    Vec supplycost = partsjoin.remove("supplycost");
-    partsjoin.add("r_name",r_name); // Shuffle to the end, to drop them
-    partsjoin.add("supplycost",supplycost);
-    int[] r0cols = new int[]{PARTIDX,1,2,3,4,5,6,7};
-    Frame rez0 = new FilterCost(region,mins).doAll(partsjoin.types(r0cols),partsjoin).outputFrame(partsjoin.names(r0cols),partsjoin.domains(r0cols));
-    partsjoin.delete();
-    // Repack the sparse result into fewer chunks
-    Frame rez1 = SQL.compact(rez0);
-    Frame rez2 = rez1.subframe(new String[]{"acctbal","s_name","n_name","partkey","mfgr","s_address","phone","s_comment"});
-
-    // Sort
-    Frame rez3 = Merge.sort(rez2,rez2.find(new String[]{"acctbal",       "n_name",       "s_name",       "partkey"}),
-                                           new int[]   {Merge.DESCENDING,Merge.ASCENDING,Merge.ASCENDING,Merge.ASCENDING});
-    rez2.delete();
-    return rez3;
-  }
-
-  // Filter by TYPE and SIZE.  Reduces dataset by ~50x
-  private static class FilterPart extends MRTask<FilterPart> {
-    final boolean[] _is_type;
-    FilterPart(boolean[] is_type) { _is_type = is_type; }
-    @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
-      Chunk parts = cs[PARTIDX], mfgrs = cs[MFGRIDX];
-      Chunk types = cs[TYPEIDX], sizes = cs[SIZEIDX];
-      NewChunk nparts = ncs[PARTIDX], nmfgrs = ncs[MFGRIDX];
-      // The Main Hot Loop
-      for( int i=0; i<types._len; i++ )
-        if( sizes.at8(i)==SIZE && _is_type[(int)types.at8(i)] ) {
-          nparts.addNum(parts.at8(i)); 
-          nmfgrs.addNum(mfgrs.at8(i));
-        }
-    }
-  }
-
-  // Find min-cost supply amongst unique parts.
-
-  static final String[] MINCOLS = new String[]{"partkey","acctbal","s_name","n_name","s_address","phone","s_comment","r_name","supplycost"};
-  static final int REGIONIDX=7, SUPCOSTIDX=8;
-  static { assert MINCOLS[REGIONIDX].equals("r_name")
-             &&   MINCOLS[  PARTIDX].equals("partkey");
-  }
-  private static class MinCost extends MRTask<MinCost> {
-    final int _region;
-    NonBlockingHashMapLong<Double> _mins;
-    MinCost( int region ) { _region=region; }
-    @Override public void map( Chunk[] cs ) {
-      Chunk partkeys= cs[PARTIDX];
-      Chunk costs   = cs[SUPCOSTIDX];
-      Chunk r_names = cs[REGIONIDX];
-      _mins = new NonBlockingHashMapLong<>();
-      // The Main Hot Loop
-      for( int i=0; i<costs._len; i++ ) {
-        if( r_names.at8(i)==_region ) {
-          long partkey = partkeys.at8(i);
-          double cost = costs.atd(i);
-          Double min = _mins.get(partkey);
-          if( min==null || cost<min )
-            _mins.put(partkey,(Double)cost);
-        }
-      }
-    }
-    @Override public void reduce(MinCost mc) {
-      for( long partkey : mc._mins.keySetLong() ) {
-        Double d0 =    _mins.get(partkey);
-        Double d1 = mc._mins.get(partkey);
-        if( d0==null || d0 < d1 )
-          _mins.put(partkey,d1);
-      }
-    }
-  }  
-
-  private static class FilterCost extends MRTask<FilterCost> {
-    final int _region;
+  // Filter suppliers by nation.  Result is a set of suppliers.
+  private static class P_PS extends MRTask<P_PS> {
+    final NonBlockingHashMapLong _partkeys;
     final NonBlockingHashMapLong<Double> _mins;
-    FilterCost( int region, NonBlockingHashMapLong<Double> mins ) { _region = region; _mins = mins; }
+    final NonBlockingHashMapLong _suppkeys;
+    P_PS( NonBlockingHashMapLong partkeys, NonBlockingHashMapLong suppkeys, NonBlockingHashMapLong<Double> mins ) {
+      _partkeys=partkeys;  _suppkeys=suppkeys;  _mins=mins;
+    }
     @Override public void map( Chunk[] cs, NewChunk[] ncs ) {
-      Chunk partkeys= cs[PARTIDX];
-      Chunk costs   = cs[SUPCOSTIDX+1];
-      Chunk r_names = cs[REGIONIDX+1];
-      // The Main Hot Loop
-      for( int i=0; i<costs._len; i++ )
-        if( r_names.at8(i)==_region ) {
-          long partkey = partkeys.at8(i);
-          double cost = costs.atd(i);
-          Double min = _mins.get(partkey);
-          if( min==cost )
+      Chunk partkeys = cs[0];
+      Chunk suppkeys = cs[1];
+      Chunk supcosts = cs[2];
+      for( int i=0; i<partkeys._len; i++ ) {
+        long partkey = partkeys.at8(i);
+        long suppkey = suppkeys.at8(i);
+        if( _partkeys.containsKey(partkey) && _suppkeys.containsKey(suppkey) ) {
+          double cost = supcosts.atd(i);
+          Double mincost = _mins.get(partkey);
+          if( mincost!=null && mincost==cost )
             SQL.copyRow(cs,ncs,i);
         }
+      }
     }
   }
   

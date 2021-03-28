@@ -77,11 +77,6 @@ public class SQL {
     nation  .vec("n_name").setDomain(ndom);
     customer.vec("n_name").setDomain(ndom);
     supplier.vec("n_name").setDomain(ndom);
-
-    // Verify suppliers suppkey is also the row number
-    Vec.Reader vsupp = supplier.vec("suppkey").new Reader();
-    for( int i=0; i<vsupp.length(); i++ )
-      assert vsupp.at8(i)==i+1;
     
     long loaded = System.currentTimeMillis();
     System.out.println("Data loaded in "+(loaded-t)+" msec"); t=loaded;
@@ -90,14 +85,25 @@ public class SQL {
     NATION_REGION = join(nation,region);
     NATION_REGION_SUPPLIER = join(NATION_REGION,supplier);
     NATION_REGION_SUPPLIER_PARTSUPP = join(NATION_REGION_SUPPLIER,PARTSUPP.frame());
+
+    // Verify suppliers suppkey is also the row number
+    Vec.Reader vsupp = supplier.vec("suppkey").new Reader();
+    for( int i=0; i<vsupp.length(); i++ )
+      assert vsupp.at8(i)==i+1;
+
+    // Verify parts partkey is also the row number
+    Vec.Reader vpart = PART.frame().vec("partkey").new Reader();
+    for( int i=0; i<vpart.length(); i++ )
+      assert vpart.at8(i)==i+1;
+
     
     long t_join = System.currentTimeMillis();
     System.out.println("JOINs done in "+(t_join-t)+" msec"); t=t_join;
     System.out.println();
     
     // Run all queries once
-    //TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
-    TPCH[] querys = new TPCH[]{new TPCH2()}; // DEBUG one query
+    TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
+    //TPCH[] querys = new TPCH[]{new TPCH2()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TPCH query : querys ) {
       System.out.println("--- "+query.name()+" ---");

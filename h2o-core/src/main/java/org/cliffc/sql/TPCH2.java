@@ -83,7 +83,7 @@ Frame null (460 rows and 8 cols):
 
       SF0.01  SF1    SF10
 Umbra         0.011
-H2O   0.003   0.012
+H2O   0.003   0.012  0.50
 */
 
 public class TPCH2 implements SQL.TPCH {

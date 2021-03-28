@@ -102,8 +102,8 @@ public class SQL {
     System.out.println();
     
     // Run all queries once
-    TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
-    //TPCH[] querys = new TPCH[]{new TPCH2()}; // DEBUG one query
+    //TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
+    TPCH[] querys = new TPCH[]{new TPCH3()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TPCH query : querys ) {
       System.out.println("--- "+query.name()+" ---");

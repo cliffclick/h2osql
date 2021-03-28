@@ -88,7 +88,7 @@ public class TSMB {
     //TAG = load("Tag");
     //UNIVERSITY = load("University");
     //UNIVERSITY_ISLOCATEDIN_CITY = load("University_isLocatedIn_City");
-    System.out.println(H2O.STOREtoString());    
+    //System.out.println(H2O.STOREtoString());    
     t = System.currentTimeMillis(); System.out.println("Data loaded; "+PrettyPrint.bytes(NSIZE)+" bytes in "+(t-t0)+" msec, Frames take "+PrettyPrint.bytes(FSIZE)); t0=t;
 
     // ------------
@@ -113,8 +113,8 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    //TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
-    TSMBI[] delves = new TSMBI[]{new TSMB6()}; // DEBUG one query
+    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
+    //TSMBI[] delves = new TSMBI[]{new TSMB1()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");
@@ -143,7 +143,7 @@ public class TSMB {
     PERSON_KNOWS_PERSON.delete();
     POST.delete();
     POST_HASTAG_TAG.delete();
-    System.out.println(H2O.STOREtoString());
+    //System.out.println(H2O.STOREtoString());
     
     System.exit(0);
   }
@@ -182,7 +182,7 @@ public class TSMB {
   static void build_hash(NonBlockingHashMapLong<NonBlockingHashMapLong> nbhms, long c0, long c1) {
     NonBlockingHashMapLong nbhm = nbhms.get(c0);
     if( nbhm==null ) {
-      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong(4));
+      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong(32));
       nbhm = nbhms.get(c0);
     }
     nbhm.put(c1,"");         // Sparse-bit-set, just a hash with no value payload

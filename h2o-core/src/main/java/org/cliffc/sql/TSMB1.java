@@ -18,7 +18,7 @@ def q1 = count[city, country, person, forum, post, comment, tag, tagclass:
 
           Answer  Umbra 1 thrd  Umbra 48thrd   H2O 20thrd
 SF0.1:    119790    0.0694 sec    0.1485 sec    0.010 sec
-SF1  :   1477484    1.1392 sec    0.4043 sec    0.027 sec
+SF1  :   1477484    1.1392 sec    0.4043 sec    0.040 sec
 SF10 :  14947019   10.7193 sec    0.8437 sec    0.287 sec
 */
 
@@ -38,8 +38,10 @@ public class TSMB1 implements TSMB.TSMBI {
   // Query plan:
   // Sparse bit set of comments/replyof.
   // Count tags of said comments.
-  
 
+  // SF1:  Build SBS comment replys# 1274592, cids# 2580332 32 msec
+  // SF10: Build SBS comment replys#12668372, cids#25652008 297 msec
+  // SF100: Issue: OOM allocating NBHML with 256,520,080 slots...
   @Override public long run() {
     long t0 = System.currentTimeMillis(), t;
 
@@ -47,7 +49,7 @@ public class TSMB1 implements TSMB.TSMBI {
     Vec cids = TSMB.COMMENT.vec("id");
     Vec cres = TSMB.COMMENT.vec("replyof_post");
     NonBlockingHashMapLong replys = new BuildReplys().doAll(cids,cres)._replys;
-    if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Build SBS comment replys "+(t-t0)+" msec"); t0=t; }
+    if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Build SBS comment replys#"+replys.size()+", cids#"+cids.length()+" "+(t-t0)+" msec"); t0=t; }
     
     // Count tags
     Vec cidts = TSMB.COMMENT_HASTAG_TAG.vec("id");
@@ -59,7 +61,7 @@ public class TSMB1 implements TSMB.TSMBI {
   
   private static class BuildReplys extends MRTask<BuildReplys> {
     transient NonBlockingHashMapLong _replys;
-    @Override protected void setupLocal() { _replys = new NonBlockingHashMapLong((int)(_fr.numRows()*2)); }
+    @Override protected void setupLocal() { _replys = new NonBlockingHashMapLong((int)(_fr.numRows())); }
     @Override public void map( Chunk cids, Chunk cres ) {
       for( int i=0; i<cids._len; i++ )
         if( !cres.isNA(i) )

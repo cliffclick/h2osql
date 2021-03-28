@@ -1183,6 +1183,20 @@ public class Vec extends Keyed<Vec> {
     public final boolean isNA(long i ) { return chk(i).isNA_abs(i); }
     public final BufferedString atStr(BufferedString sb, long i) { return chk(i).atStr_abs(sb, i); }
     public final long length() { return Vec.this.length(); }
+    // Binary search this sorted Vec for the matching key.  Return the index of
+    // the search key if it is found, or (-insertion_point-1) (same as
+    // j.u.Arrays.binarySearch).
+    public final long binsearch( long key ) {
+      long lb = 0, ub = length();
+      while (lb < ub) {
+        long mid = lb + ((ub - lb) >> 1);
+        long elem = at8(mid);
+        if( elem == key ) return mid;
+        if( elem < key ) lb = mid+1;
+        else             ub = mid;
+      }
+      return -ub-1;
+    }
   }
 
   /** Write element the slow way, as a long.  There is no way to write a

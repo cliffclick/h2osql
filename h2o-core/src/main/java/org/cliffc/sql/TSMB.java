@@ -18,7 +18,7 @@ import java.io.File;
 
 public class TSMB {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf10";
+  public static final String SCALE_FACTOR = "sf1";
   public static final String DIRNAME = "c:/Users/cliffc/Desktop/TSMB_DATA/social-network-"+SCALE_FACTOR+"-merged-fk/";
 
   // The TSMB Data
@@ -61,7 +61,7 @@ public class TSMB {
     // ------------
     // Load all the CSVs
     long t0 = System.currentTimeMillis(), t;
-    System.out.println("Loading TPCH data for "+SCALE_FACTOR);
+    System.out.println("Loading TSMB data for "+SCALE_FACTOR);
 
     CITY = load("City");
     //CITY_ISPARTOF_COUNTRY = load("City_isPartOf_Country");
@@ -88,6 +88,7 @@ public class TSMB {
     //TAG = load("Tag");
     //UNIVERSITY = load("University");
     //UNIVERSITY_ISLOCATEDIN_CITY = load("University_isLocatedIn_City");
+    System.out.println(H2O.STOREtoString());    
     t = System.currentTimeMillis(); System.out.println("Data loaded; "+PrettyPrint.bytes(NSIZE)+" bytes in "+(t-t0)+" msec, Frames take "+PrettyPrint.bytes(FSIZE)); t0=t;
 
     // ------------
@@ -112,8 +113,8 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
-    //TSMBI[] delves = new TSMBI[]{new TSMB3()}; // DEBUG one query
+    //TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
+    TSMBI[] delves = new TSMBI[]{new TSMB6()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");
@@ -125,13 +126,24 @@ public class TSMB {
     System.out.println("--- Run Many ---");
     for( TSMBI query : delves ) {
       System.out.print(query.name()+" ");
-      for( int i=0; i<5; i++ ) {
+      for( int i=0; i<10; i++ ) {
         query.run();
         t = System.currentTimeMillis(); System.out.print(""+(t-t0)+" msec, "); t0=t;
       }
       System.out.println();
     }                   
     System.out.println();
+
+    // Leak detection
+    CITY.delete();
+    COMMENT.delete();
+    COMMENT_HASTAG_TAG.delete();
+    PERSON.delete();
+    PERSON_HASINTEREST_TAG.delete();
+    PERSON_KNOWS_PERSON.delete();
+    POST.delete();
+    POST_HASTAG_TAG.delete();
+    System.out.println(H2O.STOREtoString());
     
     System.exit(0);
   }

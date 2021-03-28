@@ -9,6 +9,7 @@ import water.rapids.ast.*;
 import water.rapids.ast.params.*;
 import water.rapids.ast.prims.mungers.AstMerge;
 import water.util.SB;
+import water.util.PrettyPrint;
 
 import java.io.IOException;
 
@@ -27,6 +28,7 @@ public class SQL {
   public static final Table PARTSUPP = new Table("partsupp",new String[]{"partkey","suppkey","availqty","supplycost","ps_comment"},new String[]{"ps_comment"});
   public static final Table REGION   = new Table("region",new String[]{"regionkey","r_name","r_comment"},new String[]{"r_comment"});
   public static final Table SUPPLIER = new Table("supplier",new String[]{"suppkey","s_name","s_address","nationkey","phone","acctbal","s_comment"},null);
+  static long NSIZE, FSIZE;
 
   public static Frame NATION_REGION;          // All JOINed
   public static Frame NATION_REGION_SUPPLIER; // All JOINed
@@ -36,7 +38,7 @@ public class SQL {
     H2O.main(new String[0]);
     
     // Load all the tables
-    long t = System.currentTimeMillis();
+    long t0 = System.currentTimeMillis(), t;
     System.out.println("Loading TPCH data for "+SCALE_FACTOR);
     CUSTOMER.frame();
     LINEITEM.frame();
@@ -77,9 +79,9 @@ public class SQL {
     nation  .vec("n_name").setDomain(ndom);
     customer.vec("n_name").setDomain(ndom);
     supplier.vec("n_name").setDomain(ndom);
-    
-    long loaded = System.currentTimeMillis();
-    System.out.println("Data loaded in "+(loaded-t)+" msec"); t=loaded;
+
+    System.out.println(H2O.STOREtoString());    
+    t = System.currentTimeMillis(); System.out.println("Data loaded; "+PrettyPrint.bytes(NSIZE)+" bytes in "+(t-t0)+" msec, Frames take "+PrettyPrint.bytes(FSIZE)); t0=t;
 
     // Run a few common JOINs.
     NATION_REGION = join(nation,region);
@@ -96,14 +98,23 @@ public class SQL {
     for( int i=0; i<vpart.length(); i++ )
       assert vpart.at8(i)==i+1;
 
+    // Verify custs custkey is also the row number
+    Vec.Reader vcust = customer.vec("custkey").new Reader();
+    for( int i=0; i<vcust.length(); i++ )
+      assert vcust.at8(i)==i+1;
+
+    // Verify orders orderkey is sorted
+    Vec.Reader vorderkey = ORDERS.frame().vec("orderkey").new Reader();
+    for( int i=1; i<vcust.length(); i++ )
+      assert vorderkey.at8(i-1) < vorderkey.at8(i);
     
     long t_join = System.currentTimeMillis();
-    System.out.println("JOINs done in "+(t_join-t)+" msec"); t=t_join;
+    System.out.println("JOINs done in "+(t_join-t0)+" msec"); t0=t_join;
     System.out.println();
     
     // Run all queries once
-    //TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
-    TPCH[] querys = new TPCH[]{new TPCH3()}; // DEBUG one query
+    TPCH[] querys = new TPCH[]{new TPCH1(),new TPCH2(),new TPCH3(),new TPCH4(),new TPCH5(),new TPCH6(), new TPCH7()};
+    //TPCH[] querys = new TPCH[]{new TPCH3()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TPCH query : querys ) {
       System.out.println("--- "+query.name()+" ---");
@@ -111,7 +122,7 @@ public class SQL {
       System.out.println(q.toTwoDimTable());
       long t_q = System.currentTimeMillis();
       q.delete();
-      System.out.println("--- "+query.name()+" "+(t_q-t)+" msec ---"); t=t_q;
+      System.out.println("--- "+query.name()+" "+(t_q-t0)+" msec ---"); t0=t_q;
     }
 
     System.out.println("--- Run Many ---");
@@ -121,12 +132,25 @@ public class SQL {
         Frame fr = query.run();
         long t_q = System.currentTimeMillis();
         fr.delete();
-        System.out.print(""+(t_q-t)+" msec, "); t=t_q;
+        System.out.print(""+(t_q-t0)+" msec, "); t0=t_q;
       }
       System.out.println();
     }                   
     System.out.println();
-    
+
+    // leak detection
+    NATION_REGION.delete();
+    NATION_REGION_SUPPLIER.delete();
+    NATION_REGION_SUPPLIER_PARTSUPP.delete();
+    CUSTOMER.frame().delete();
+    LINEITEM.frame().delete();
+    NATION  .frame().delete();
+    ORDERS  .frame().delete();
+    PART    .frame().delete();
+    PARTSUPP.frame().delete();
+    REGION  .frame().delete();
+    SUPPLIER.frame().delete();
+    System.out.println(H2O.STOREtoString());    
     System.exit(0);
   }
 
@@ -150,6 +174,7 @@ public class SQL {
       try {
         String fname = "c:/Users/cliffc/Desktop/raicode/packages/DelveBenchmarks/src/TPCH/data/"+SCALE_FACTOR+"/"+_name+".tbl";
         NFSFileVec nfs = NFSFileVec.make(fname);      
+        NSIZE += nfs.length();
         Key<?>[] keys = new Key[]{nfs._key};
 
         // Force CSV parse, with '|' field separator, no-single-quotes,
@@ -167,7 +192,9 @@ public class SQL {
           guess2.setSkippedColumns(nx);
         }
         // Parse a frame and return it
-        return ParseDataset.parse(Key.make(_name+".hex"), keys, true, guess2);
+        Frame fr = ParseDataset.parse(Key.make(_name+".hex"), keys, true, guess2);
+        FSIZE += fr.byteSize();
+        return fr;
       } catch( IOException ioe ) {
         throw new RuntimeException(ioe);
       }

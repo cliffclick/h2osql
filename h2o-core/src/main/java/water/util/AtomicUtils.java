@@ -3,6 +3,8 @@ package water.util;
 import sun.misc.Unsafe;
 import water.nbhm.UtilUnsafe;
 
+import static water.nbhm.UtilUnsafe.UNSAFE;
+
 public abstract class AtomicUtils {
   // Atomically-updated float array
   public abstract static class FloatArray {
@@ -64,6 +66,13 @@ public abstract class AtomicUtils {
       while( !CAS(ds,i,old=ds[i],Math.max(old,max)) ) ;
     }
   }
+
+  public static void atomicAdd( Object o, long fldoff, double d ) {
+    double old;
+    while( !UNSAFE.compareAndSwapLong(o,fldoff,Double.doubleToRawLongBits(old=UNSAFE.getDouble(o,fldoff)),Double.doubleToRawLongBits(old+d) ) ) ;
+  }
+  
+  
 
   // Atomically-updated long array.  Instead of using the similar JDK pieces,
   // allows the bare array to be exposed for fast readers.

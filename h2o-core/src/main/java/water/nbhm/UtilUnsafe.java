@@ -14,7 +14,7 @@ import sun.misc.Unsafe;
  */
 public class UtilUnsafe {
   private UtilUnsafe() { } // dummy private constructor
-  static final Unsafe UNSAFE = getUnsafe();
+  public static final Unsafe UNSAFE = getUnsafe();
   /** Fetch the Unsafe.  Use With Caution. */
   public static Unsafe getUnsafe() {
     // Not on bootclasspath
@@ -29,7 +29,7 @@ public class UtilUnsafe {
     }
   }
 
-  static final long fieldOffset( Class clz, String field ) {
+  public static final long fieldOffset( Class clz, String field ) {
     Field f = null;
     try { f = clz.getDeclaredField(field); }
     catch( java.lang.NoSuchFieldException e ) { throw new RuntimeException(e); }

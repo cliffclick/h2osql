@@ -246,8 +246,8 @@ public class TPCH2 implements SQL.TPCH {
   }
   // Pack a suppkey & suppcost in a long
   private static long suppkey2pack( long suppkey, double cost ) {
-    int costi = (int)cost*100;
-    assert Math.abs(((double)costi)/100-cost) < 1e-10;
+    int costi = (int)(cost*100+0.5);
+    assert Math.abs(((double)costi)/100.0-cost) < 1e-10 : "Cost does not pack: "+cost+", costi="+costi+", err="+(Math.abs(((double)costi)/100.0-cost));
     int suppi = (int)suppkey;
     assert suppi==suppkey;
     return (((long)suppi)<<32)|costi;

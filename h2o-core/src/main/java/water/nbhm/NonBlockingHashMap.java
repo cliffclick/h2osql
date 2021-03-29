@@ -110,7 +110,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
   }
 
   // --- hash ----------------------------------------------------------------
-  // Helper function to spread lousy hashCodes Throws NPE for null Key, on
+  // Helper function to spread lousy hashCodes.  Throws NPE for null Key, on
   // purpose - as the first place to conveniently toss the required NPE for a
   // null Key.
   private static final int hash(final Object key) {
@@ -120,8 +120,6 @@ public class NonBlockingHashMap<TypeK, TypeV>
     h += h<<7; // smear low bits up high, for hashcodes that only differ by 1
     return h;
   }
-
-
 
   // --- The Hash Table --------------------
   // Slot 0 is always used for a 'CHM' entry below to hold the interesting
@@ -249,7 +247,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
   // the reprobe limit on a 'get' call acts as a 'miss'; on a 'put' call it
   // can trigger a table resize.  Several places must have exact agreement on
   // what the reprobe_limit is, so we share it here.
-  private static final int reprobe_limit( int len ) {
+  private static int reprobe_limit( int len ) {
     return REPROBE_LIMIT + (len>>4);
   }
 
@@ -325,6 +323,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
    *  @return the previous value associated with the specified key,
    *         or <tt>null</tt> if there was no mapping for the key
    *  @throws NullPointerException if the specified key or value is null  */
+  @Override
   public TypeV   putIfAbsent( TypeK  key, TypeV val ) { return putIfMatch( key,      val, TOMBSTONE   ); }
 
   /** Removes the key (and its corresponding value) from this map.
@@ -343,11 +342,13 @@ public class NonBlockingHashMap<TypeK, TypeV>
   /** Atomically do a <code>put(key,val)</code> if-and-only-if the key is
    *  mapped to some value already.
    *  @throws NullPointerException if the specified key or value is null */
+  @Override
   public TypeV   replace    ( TypeK  key, TypeV val ) { return putIfMatch( key,      val,MATCH_ANY   ); }
 
   /** Atomically do a <code>put(key,newValue)</code> if-and-only-if the key is
    *  mapped a value which is <code>equals</code> to <code>oldValue</code>.
    *  @throws NullPointerException if the specified key or value is null */
+  @Override
   public boolean replace    ( TypeK  key, TypeV  oldValue, TypeV newValue ) {
     return putIfMatch( key, newValue, oldValue ) == oldValue;
   }
@@ -359,7 +360,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
   public final TypeV putIfMatchUnlocked( Object key, Object newVal, Object oldVal ) {
     if( oldVal == null ) oldVal = TOMBSTONE;
     if( newVal == null ) newVal = TOMBSTONE;
-    final TypeV res = (TypeV)putIfMatch( this, _kvs, key, newVal, oldVal );
+    final TypeV res = (TypeV) putIfMatch(this, _kvs, key, newVal, oldVal );
     assert !(res instanceof Prime);
     //assert res != null;
     return res == TOMBSTONE ? null : res;
@@ -367,7 +368,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
 
   public final TypeV putIfMatch( Object key, Object newVal, Object oldVal ) {
     if (oldVal == null || newVal == null) throw new NullPointerException();
-    final Object res = putIfMatch( this, _kvs, key, newVal, oldVal );
+    final Object res = putIfMatch(this, _kvs, key, newVal, oldVal );
     assert !(res instanceof Prime);
     assert res != null;
     return res == TOMBSTONE ? null : (TypeV)res;
@@ -620,13 +621,13 @@ public class NonBlockingHashMap<TypeK, TypeV>
     }
   }
 
+  static volatile int DUMMY_VOLATILE;
   // --- putIfMatch ---------------------------------------------------------
   // Put, Remove, PutIfAbsent, etc.  Return the old value.  If the returned
   // value is equal to expVal (or expVal is NO_MATCH_OLD) then the put can be
   // assumed to work (although might have been immediately overwritten).  Only
   // the path through copy_slot passes in an expected value of null, and
   // putIfMatch only returns a null if passed in an expected null.
-  static volatile int DUMMY_VOLATILE;
   private static final Object putIfMatch( final NonBlockingHashMap topmap, final Object[] kvs, final Object key, final Object putval, final Object expVal ) {
     assert putval != null;
     assert !(putval instanceof Prime);
@@ -654,8 +655,8 @@ public class NonBlockingHashMap<TypeK, TypeV>
       if( K == null ) {         // Slot is free?
         // Found an empty Key slot - which means this Key has never been in
         // this table.  No need to put a Tombstone - the Key is not here!
-        if( putval == TOMBSTONE ) return putval; // Not-now & never-been in this table
-        if( expVal == MATCH_ANY ) return null;   // Will not match, even after K inserts
+        if( putval == TOMBSTONE ) return TOMBSTONE; // Not-now & never-been in this table
+        if( expVal == MATCH_ANY ) return TOMBSTONE; // Will not match, even after K inserts
         // Claim the null key-slot
         if( CAS_key(kvs,idx, null, key ) ) { // Claim slot for Key
           chm._slots.add(1);      // Raise key-slots-used count
@@ -703,7 +704,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
         // to claim a key slot (indeed, we cannot find a free one to claim!).
         newkvs = chm.resize(topmap,kvs);
         if( expVal != null ) topmap.help_copy(newkvs); // help along an existing copy
-        return putIfMatch(topmap,newkvs,key,putval,expVal);
+        return putIfMatch(topmap, newkvs, key, putval, expVal);
       }
 
       idx = (idx+1)&(len-1); // Reprobe!
@@ -823,7 +824,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
     // to get the required memory orderings.  It monotonically transits from
     // null to set (once).
     volatile Object[] _newkvs;
-    private final AtomicReferenceFieldUpdater<CHM,Object[]> _newkvsUpdater =
+    private static final AtomicReferenceFieldUpdater<CHM,Object[]> _newkvsUpdater =
       AtomicReferenceFieldUpdater.newUpdater(CHM.class,Object[].class, "_newkvs");
     // Set the _next field if we can.
     boolean CAS_newkvs( Object[] newkvs ) {
@@ -906,7 +907,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
       // with a higher reprobe rate
       //if( sz >= (oldlen>>1) ) // If we are >50% full of keys then...
       //  newsz = oldlen<<1;    // Double size
-      
+
       // Last (re)size operation was very recent?  Then double again
       // despite having few live keys; slows down resize operations
       // for tables subject to a high key churn rate - but do not
@@ -974,7 +975,7 @@ public class NonBlockingHashMap<TypeK, TypeV>
       // racing resizing threads.  Extra CHM's will be GC'd.
       if( CAS_newkvs( newkvs ) ) { // NOW a resize-is-in-progress!
         //notifyAll();            // Wake up any sleepers
-//        Log.info("Resizing NBHM: "+oldlen+" -> "+(1<<log2));
+        //        Log.info("Resizing NBHM: "+oldlen+" -> "+(1<<log2));
         topmap.rehash();        // Call for Hashtable's benefit
       } else                    // CAS failed?
         newkvs = _newkvs;       // Reread new table
@@ -1090,8 +1091,6 @@ public class NonBlockingHashMap<TypeK, TypeV>
           copyDone = _copyDone; // Reload, retry
           assert (copyDone+workdone) <= oldlen;
         }
-        //if( (10*copyDone/oldlen) != (10*(copyDone+workdone)/oldlen) )
-        //System.out.print(" "+(copyDone+workdone)*100/oldlen+"%"+"_"+(_copyIdx*100/oldlen)+"%");
       }
 
       // Check for copy being ALL done, and promote.  Note that we might have
@@ -1108,15 +1107,15 @@ public class NonBlockingHashMap<TypeK, TypeV>
 
     // --- copy_slot ---------------------------------------------------------
     // Copy one K/V pair from oldkvs[i] to newkvs.  Returns true if we can
-    // confirm that the new table guaranteed has a value for this old-table
-    // slot.  We need an accurate confirmed-copy count so that we know when we
-    // can promote (if we promote the new table too soon, other threads may
-    // 'miss' on values not-yet-copied from the old table).  We don't allow
-    // any direct updates on the new table, unless they first happened to the
-    // old table - so that any transition in the new table from null to
-    // not-null must have been from a copy_slot (or other old-table overwrite)
-    // and not from a thread directly writing in the new table.  Thus we can
-    // count null-to-not-null transitions in the new table.
+    // confirm that we set an old-table slot to TOMBPRIME, and only returns after
+    // updating the new table.  We need an accurate confirmed-copy count so
+    // that we know when we can promote (if we promote the new table too soon,
+    // other threads may 'miss' on values not-yet-copied from the old table).
+    // We don't allow any direct updates on the new table, unless they first
+    // happened to the old table - so that any transition in the new table from
+    // null to not-null must have been from a copy_slot (or other old-table
+    // overwrite) and not from a thread directly writing in the new table.
+    // Thus we can count null-to-not-null transitions in the new table.
     private boolean copy_slot( NonBlockingHashMap topmap, int idx, Object[] oldkvs, Object[] newkvs ) {
       // Blindly set the key slot from null to TOMBSTONE, to eagerly stop
       // fresh put's from inserting new values in the old table when the old

@@ -72,7 +72,7 @@ orderkey            orderdate      revenue  shippriority
 
       SF0.01  SF1    SF10
 Umbra         0.011
-H2O           0.022
+H2O           0.022  0.165
 */
 
 public class TPCH3 implements SQL.TPCH {

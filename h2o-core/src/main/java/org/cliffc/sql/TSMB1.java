@@ -17,9 +17,11 @@ def q1 = count[city, country, person, forum, post, comment, tag, tagclass:
 ]
 
           Answer  Umbra 1 thrd  Umbra 48thrd   H2O 20thrd
-SF0.1:    119790    0.0694 sec    0.1485 sec    0.010 sec
+SF0.1:    119790    0.0694 sec    0.1485 sec    0.005 sec
 SF1  :   1477484    1.1392 sec    0.4043 sec    0.040 sec
-SF10 :  14947019   10.7193 sec    0.8437 sec    0.287 sec
+SF10 :  14947019   10.7193 sec    0.8437 sec    0.287 sec //0.350
+SF100: 149269257                                4.000 sec
+
 */
 
 public class TSMB1 implements TSMB.TSMBI {

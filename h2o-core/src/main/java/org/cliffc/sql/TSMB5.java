@@ -21,9 +21,10 @@ def q5 = count[cityA, cityB, cityC, country, pA, pB, pC:
 ]
 
           Answer  Umbra 1 thrd  Umbra 48thrd   H2O 20thrd
-SF0.1:     30456     0.117 sec    0.0349 sec    0.007 sec
+SF0.1:     30456     0.117 sec    0.0349 sec    0.005 sec
 SF1  :    753570    2.3345 sec    0.2094 sec    0.016 sec
-SF10 :  15028644   25.6234 sec    1.1867 sec    0.540 sec
+SF10 :  15028644   25.6234 sec    1.1867 sec    0.400 sec
+SF100: 255675126                                6.800 sec
 */
 
 public class TSMB5 implements TSMB.TSMBI {
@@ -61,18 +62,18 @@ public class TSMB5 implements TSMB.TSMBI {
 
   private static class Count extends MRTask<Count> {
     long _cnt;
-    final NonBlockingHashMapLong<NonBlockingHashMapLong> _p1p2s;
+    final NonBlockingHashMapLong<SparseBitSet> _p1p2s;
     final NonBlockingHashMapLong<Long> _p2c;
-    Count( NonBlockingHashMapLong<NonBlockingHashMapLong> p1p2s, NonBlockingHashMapLong<Long> p2c ) { _p1p2s = p1p2s; _p2c=p2c; }
+    Count( NonBlockingHashMapLong<SparseBitSet> p1p2s, NonBlockingHashMapLong<Long> p2c ) { _p1p2s = p1p2s; _p2c=p2c; }
     @Override public void map( Chunk p1s, Chunk p2s ) {
       long cnt=0;
       for( int i=0; i<p1s._len; i++ ) {
         long p1 = p1s.at8(i), p2 = p2s.at8(i);
         Long country = _p2c.get(p1);
         if( _p2c.get(p2)!=country ) continue; // p1,p2 not same country
-        NonBlockingHashMapLong p3s = _p1p2s.get(p2);
+        SparseBitSet p3s = _p1p2s.get(p2);
         for( long p3 : p3s.rawKeySet() )
-          if( p3!=0 && _p2c.get(p3)==country && _p1p2s.get(p1).get(p3)!=null ) // p1 knowns p3 also; p3 same country
+          if( p3!=0 && _p2c.get(p3)==country && _p1p2s.get(p1).tst(p3) ) // p1 knowns p3 also; p3 same country
             cnt+=2;             // twice, because triangulation
       }
       _cnt=cnt;

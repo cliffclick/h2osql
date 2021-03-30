@@ -52,7 +52,7 @@ public class TSMB {
   // Some pre-built relationships.
 
   // Person-knows-person.  Hashed by person# to a sparse set of person#s.  Symmetric.
-  public static NonBlockingHashMapLong<NonBlockingHashMapLong> P_KNOWS_P;
+  public static NonBlockingHashMapLong<SparseBitSet> P_KNOWS_P;
   public static NonBlockingHashMapLong<Long> CITY_COUNTRY;
   
   public static void main( String[] args ) throws IOException {
@@ -114,7 +114,7 @@ public class TSMB {
     // ------------
     // Run all queries once
     TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
-    //TSMBI[] delves = new TSMBI[]{new TSMB1()}; // DEBUG one query
+    //TSMBI[] delves = new TSMBI[]{new TSMB6()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");
@@ -163,8 +163,8 @@ public class TSMB {
   }
 
   private static class BuildP1P2 extends MRTask<BuildP1P2> {
-    transient NonBlockingHashMapLong<NonBlockingHashMapLong> _p1p2s;
-    @Override protected void setupLocal() { _p1p2s = new NonBlockingHashMapLong<NonBlockingHashMapLong>(10000); }
+    transient NonBlockingHashMapLong<SparseBitSet> _p1p2s;
+    @Override protected void setupLocal() { _p1p2s = new NonBlockingHashMapLong<>((int)(_fr.numRows()*2)); }
     @Override public void map(Chunk p1s, Chunk p2s ) {
       for( int i=0; i<p1s._len; i++ ) {
         long p1 = p1s.at8(i);
@@ -179,31 +179,51 @@ public class TSMB {
     }
   }
 
-  static void build_hash(NonBlockingHashMapLong<NonBlockingHashMapLong> nbhms, long c0, long c1) {
-    NonBlockingHashMapLong nbhm = nbhms.get(c0);
-    if( nbhm==null ) {
-      nbhms.putIfAbsent(c0,new NonBlockingHashMapLong(32));
-      nbhm = nbhms.get(c0);
+  static void build_hash(NonBlockingHashMapLong<SparseBitSet> sbsis, long c0, long c1) {
+    SparseBitSet sbsi = sbsis.get(c0);
+    if( sbsi==null ) {
+      sbsis.putIfAbsent(c0,new SparseBitSet(32));
+      sbsi = sbsis.get(c0);
     }
-    nbhm.put(c1,"");         // Sparse-bit-set, just a hash with no value payload
+    sbsi.set(c1);               // Sparse-bit-set
   }
 
   // Summary printer for hash-of-hashes.
-  static void print(String msg, NonBlockingHashMapLong<NonBlockingHashMapLong> p2xs) {
+  static void print(String msg, NonBlockingHashMapLong<SparseBitSet> p2xs) {
     long sum=0,sum2=0;
+    double sum_probe_ratio=0, max_probe_ratio=-1, sum_probes=0, max_probes=-1;
     long min=Long.MAX_VALUE;
     long max=0;
-    for( NonBlockingHashMapLong p2x : p2xs.values() ) {
-      long size = p2x.size();
+    SparseBitSet bad=null;
+    int probe_cnt=0;
+    for( SparseBitSet p2x : p2xs.values() ) {
+      long size = p2x.fast_cardinality();
       sum  += size;
       sum2 += size*size;
       if( size < min ) min = size;
       if( size > max ) max = size;
+      //// Check hash goodness
+      //long probes = p2x.reprobes();
+      //long tsts   = p2x.tsts    ();
+      //if( tsts>0 ) {
+      //  probe_cnt++;
+      //  double ratio = (double)probes/tsts;
+      //  sum_probes += probes;
+      //  sum_probe_ratio += ratio;
+      //  if( probes > max_probes ) max_probes = probes;
+      //  if( ratio > max_probe_ratio ) max_probe_ratio = ratio;
+      //  if( ratio > 15 ) bad=p2x;
+      //}
     }
     long size = p2xs.size();
     double avg = (double)sum/size;
     double std = Math.sqrt((double)sum2/size);
-    System.out.println(msg+": "+size+", avg="+avg+", min="+min+", max="+max+", stddev="+std);
+    double avg_probes = sum_probes/probe_cnt;
+    double avg_probe_ratio = sum_probe_ratio/probe_cnt;
+    System.out.println(msg+": "+size+", avg "+avg+", min "+min+", max "+max+", stddev "+std);
+    //System.out.println(msg+": "+size+", avg "+avg+", min "+min+", max "+max+", stddev "+std+", avg_probes "+avg_probes+", max_probes "+max_probes+", avg_probe_ratio "+avg_probe_ratio+", max_probe_ratio "+max_probe_ratio);
+    if( bad!=null )
+      System.out.println(" bad size "+bad.cardinality()+", table size "+bad.rawKeySet().length);
   }
 
 

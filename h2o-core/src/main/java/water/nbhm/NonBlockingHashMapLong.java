@@ -193,13 +193,15 @@ public class NonBlockingHashMapLong<TypeV>
   }
 
   // Count of reprobes
-  private transient ConcurrentAutoTable _reprobes = new ConcurrentAutoTable();
+  //public transient ConcurrentAutoTable _reprobes = new ConcurrentAutoTable();
+  //public transient ConcurrentAutoTable _gets = new ConcurrentAutoTable();
   /** Get and clear the current count of reprobes.  Reprobes happen on key
    *  collisions, and a high reprobe rate may indicate a poor hash function or
    *  weaknesses in the table resizing function.
    *  @return the count of reprobes since the last call to {@link #reprobes}
    *  or since the table was created.   */
-  public long reprobes() { long r = _reprobes.get(); _reprobes = new ConcurrentAutoTable(); return r; }
+  //public long reprobes() { long r = _reprobes.get(); _reprobes = new ConcurrentAutoTable(); return r; }
+  //public long gets    () { long r = _gets    .get(); _gets     = new ConcurrentAutoTable(); return r; }
 
 
   // --- reprobe_limit -----------------------------------------------------
@@ -539,6 +541,7 @@ public class NonBlockingHashMapLong<TypeV>
       final int hash = hash(key);
       final int len     = _keys.length;
       int idx = (hash & (len-1)); // First key hash
+      //_nbhml._gets.add(1);
 
       // Main spin/reprobe loop, looking for a Key hit
       int reprobe_cnt=0;
@@ -565,6 +568,7 @@ public class NonBlockingHashMapLong<TypeV>
         // get and put must have the same key lookup logic!  But only 'put'
         // needs to force a table-resize for a too-long key-reprobe sequence.
         // Check for too-many-reprobes on get.
+        //_nbhml._reprobes.add(1);
         if( ++reprobe_cnt >= reprobe_limit(len) ) // too many probes
           return _newchm == null // Table copy in progress?
             ? null               // Nope!  A clear miss
@@ -629,7 +633,7 @@ public class NonBlockingHashMapLong<TypeV>
 
         // get and put must have the same key lookup logic!  Lest 'get' give
         // up looking too soon.
-        //topmap._reprobes.add(1);
+        //_nbhml._reprobes.add(1);
         if( ++reprobe_cnt >= reprobe_limit(len) ) {
           // We simply must have a new table to do a 'put'.  At this point a
           // 'get' will also go to the new table (if any).  We do not need

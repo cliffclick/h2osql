@@ -206,7 +206,7 @@ public class SparseBitSet {
     }
   }
   
-  @Override public String toString() { return str(new SB()).toString(); }
+  @Override public String toString() { return str(new SB().p('#').p(fast_cardinality())).toString(); }
   public SB str(SB sb) {
     sb.p('[');
     if( _zero.get()!=0 ) sb.p("0,");

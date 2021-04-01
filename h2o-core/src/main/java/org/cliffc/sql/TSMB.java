@@ -15,10 +15,9 @@ import java.io.File;
 // TSMB Queries from Rel.
 //  raicode/bench/TSMB/queries.rel 
 
-
 public class TSMB {
   // Scale-factor; also part of the data directory name.
-  public static final String SCALE_FACTOR = "sf1";
+  public static final String SCALE_FACTOR = "sf0.1";
   public static final String DIRNAME = "c:/Users/cliffc/Desktop/TSMB_DATA/social-network-"+SCALE_FACTOR+"-merged-fk/";
 
   // The TSMB Data
@@ -51,9 +50,11 @@ public class TSMB {
 
   // Some pre-built relationships.
 
+  // Dense Person IDs.  Row number in PERSON is your ID.
+  public static NonBlockingHashMapLong<Integer> DIDS;
   // Person-knows-person.  Hashed by person# to a sparse set of person#s.  Symmetric.
-  public static NonBlockingHashMapLong<SparseBitSet> P_KNOWS_P;
-  public static NonBlockingHashMapLong<Long> CITY_COUNTRY;
+  public static NonBlockingHashMapLong<SparseBitSetInt> P_KNOWS_P;
+  public static NonBlockingHashMapLong<Integer> CITY_COUNTRY;
   
   public static void main( String[] args ) throws IOException {
     H2O.main(new String[0]);
@@ -82,8 +83,8 @@ public class TSMB {
     //PERSON_LIKES_POST = load("Person_likes_Post");
     //PERSON_STUDYAT_UNIVERSITY = load("Person_studyAt_University");
     //PERSON_WORKAT_COMPANY = load("Person_workAt_Company");
-    POST = load("Post");
-    POST_HASTAG_TAG = load("Post_hasTag_Tag");
+    //POST = load("Post");
+    //POST_HASTAG_TAG = load("Post_hasTag_Tag");
     //TAGCLASS = load("TagClass");
     //TAG = load("Tag");
     //UNIVERSITY = load("University");
@@ -93,12 +94,25 @@ public class TSMB {
 
     // ------------
     // Build some shared common relationships.
-    
+
+    // Renumber Persons dense.
+    // Row number in Person array is your dense id number.  Build hash of pid->did
+    Vec pids = PERSON.vec("id");
+    DIDS = new Renumber().doAll(pids)._dids;
+
+    // Rewrite P->P edges dense
+    Vec  p1s = PERSON_KNOWS_PERSON.vec("person1id");
+    Vec  p2s = PERSON_KNOWS_PERSON.vec("person2id");
+    Vec dp1s = new Rewrite().doAll(Vec.T_NUM,p1s).outputFrame().anyVec();
+    Vec dp2s = new Rewrite().doAll(Vec.T_NUM,p2s).outputFrame().anyVec();
+    PERSON_KNOWS_PERSON.add("dp1",dp1s);
+    PERSON_KNOWS_PERSON.add("dp2",dp2s);
+    PERSON                .add("did",new Rewrite().doAll(Vec.T_NUM,PERSON                .vec("id")).outputFrame().anyVec());
+    PERSON_HASINTEREST_TAG.add("did",new Rewrite().doAll(Vec.T_NUM,PERSON_HASINTEREST_TAG.vec("id")).outputFrame().anyVec());
+                            
     // Build person-knows-person as a hashtable from person# to a (hashtable of person#s).
     // Symmetric.  2nd table is a sparse bitmap (no value).
-    Vec p1s = PERSON_KNOWS_PERSON.vec("person1id");
-    Vec p2s = PERSON_KNOWS_PERSON.vec("person2id");
-    P_KNOWS_P = new BuildP1P2().doAll(p1s,p2s)._p1p2s;
+    P_KNOWS_P = new BuildPKP().doAll(dp1s,dp2s)._pkps;
 
     // Hash from city to country
     CITY_COUNTRY = new NonBlockingHashMapLong<>();
@@ -107,13 +121,13 @@ public class TSMB {
     Vec.Reader vrcity = city.new Reader();
     Vec.Reader vrcnty = cnty.new Reader();
     for( int i=0; i<vrcity.length(); i++ )
-      CITY_COUNTRY.put((long)vrcity.at8(i),(Long)vrcnty.at8(i));
+      CITY_COUNTRY.put((long)vrcity.at8(i),(Integer)(int)vrcnty.at8(i));
     
     t = System.currentTimeMillis(); System.out.println("Building shared hashes in "+(t-t0)+" msec"); t0=t;
 
     // ------------
     // Run all queries once
-    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6()};
+    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6(), new TSMB11()};
     //TSMBI[] delves = new TSMBI[]{new TSMB6()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
@@ -141,8 +155,8 @@ public class TSMB {
     PERSON.delete();
     PERSON_HASINTEREST_TAG.delete();
     PERSON_KNOWS_PERSON.delete();
-    POST.delete();
-    POST_HASTAG_TAG.delete();
+    //POST.delete();
+    //POST_HASTAG_TAG.delete();
     //System.out.println(H2O.STOREtoString());
     
     System.exit(0);
@@ -162,30 +176,54 @@ public class TSMB {
     return fr;
   }
 
-  private static class BuildP1P2 extends MRTask<BuildP1P2> {
-    transient NonBlockingHashMapLong<SparseBitSet> _p1p2s;
-    @Override protected void setupLocal() { _p1p2s = new NonBlockingHashMapLong<>((int)(_fr.numRows()*2)); }
+  // Renumber Person IDs to dense integers, skipping 0
+  private static class Renumber extends MRTask<Renumber> {
+    transient NonBlockingHashMapLong<Integer> _dids;
+    @Override protected void setupLocal() { _dids = new NonBlockingHashMapLong<>((int)(_fr.numRows()*2)); }
+    @Override public void map(Chunk pids ) {
+      assert pids.start() < Integer.MAX_VALUE;
+      int start = (int)pids.start();
+      for( int i=0; i<pids._len; i++ )
+        _dids.put(pids.at8(i),(Integer)(start+i+1));
+    }
+    @Override public void reduce( Renumber bld ) {
+      if( _dids != bld._dids )
+        throw new RuntimeException("distributed reduce not implemented");
+    }
+  }
+  
+  private static class Rewrite extends MRTask<Rewrite> {
+    @Override public void map( Chunk ps, NewChunk ds ) {
+      for( int i=0; i<ps._len; i++ )
+        ds.addNum(DIDS.get(ps.at8(i)));
+    }
+  }
+
+  private static class BuildPKP extends MRTask<BuildPKP> {
+    transient NonBlockingHashMapLong<SparseBitSetInt> _pkps;
+    @Override protected void setupLocal() { _pkps = new NonBlockingHashMapLong<>((int)(_fr.numRows()*2)); }
     @Override public void map(Chunk p1s, Chunk p2s ) {
       for( int i=0; i<p1s._len; i++ ) {
         long p1 = p1s.at8(i);
         long p2 = p2s.at8(i);
-        build_hash(_p1p2s,p1,p2);
-        build_hash(_p1p2s,p2,p1);
+        build_hash(_pkps,p1,p2);
+        build_hash(_pkps,p2,p1);
       }      
     }
-    @Override public void reduce( BuildP1P2 bld ) {
-      if( _p1p2s != bld._p1p2s )
+    @Override public void reduce( BuildPKP bld ) {
+      if( _pkps != bld._pkps )
         throw new RuntimeException("distributed reduce not implemented");
     }
   }
 
-  static void build_hash(NonBlockingHashMapLong<SparseBitSet> sbsis, long c0, long c1) {
-    SparseBitSet sbsi = sbsis.get(c0);
+  static void build_hash(NonBlockingHashMapLong<SparseBitSetInt> sbsis, long c0, long c1) {
+    SparseBitSetInt sbsi = sbsis.get(c0);
     if( sbsi==null ) {
-      sbsis.putIfAbsent(c0,new SparseBitSet(32));
+      sbsis.putIfAbsent(c0,new SparseBitSetInt(32));
       sbsi = sbsis.get(c0);
     }
-    sbsi.set(c1);               // Sparse-bit-set
+    assert (int)c1==c1;
+    sbsi.set((int)c1);          // Sparse-bit-set
   }
 
   // Summary printer for hash-of-hashes.

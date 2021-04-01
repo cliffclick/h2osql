@@ -46,15 +46,15 @@ public class TSMB5 implements TSMB.TSMBI {
   @Override public long run() {
     long t0 = System.currentTimeMillis(), t;
 
-    Vec vper = TSMB.PERSON.vec("id");
+    Vec vper = TSMB.PERSON.vec("did");
     Vec vloc = TSMB.PERSON.vec("islocatedin_place");
-    NonBlockingHashMapLong<Long> p2c = new BuildP2C().doAll(vper,vloc)._p2c;
+    NonBlockingHashMapLong<Integer> p2c = new BuildP2C().doAll(vper,vloc)._p2c;
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Hash p->country "+(t-t0)+" msec"); t0=t; }
     
     // ForAll P1s...
-    Vec p1s = TSMB.PERSON_KNOWS_PERSON.vec("person1id");
-    Vec p2s = TSMB.PERSON_KNOWS_PERSON.vec("person2id");
-    long cnt = new Count(TSMB.P_KNOWS_P,p2c).doAll(p1s,p2s)._cnt;
+    Vec p1s = TSMB.PERSON_KNOWS_PERSON.vec("dp1");
+    Vec p2s = TSMB.PERSON_KNOWS_PERSON.vec("dp2");
+    long cnt = new Count(p2c).doAll(p1s,p2s)._cnt;
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("ForAll P1,P2,P3 "+(t-t0)+" msec"); t0=t; }
     
     return cnt;
@@ -62,18 +62,17 @@ public class TSMB5 implements TSMB.TSMBI {
 
   private static class Count extends MRTask<Count> {
     long _cnt;
-    final NonBlockingHashMapLong<SparseBitSet> _p1p2s;
-    final NonBlockingHashMapLong<Long> _p2c;
-    Count( NonBlockingHashMapLong<SparseBitSet> p1p2s, NonBlockingHashMapLong<Long> p2c ) { _p1p2s = p1p2s; _p2c=p2c; }
+    final NonBlockingHashMapLong<Integer> _p2c;
+    Count( NonBlockingHashMapLong<Integer> p2c ) { _p2c=p2c; }
     @Override public void map( Chunk p1s, Chunk p2s ) {
       long cnt=0;
       for( int i=0; i<p1s._len; i++ ) {
-        long p1 = p1s.at8(i), p2 = p2s.at8(i);
-        Long country = _p2c.get(p1);
+        int p1 = (int)p1s.at8(i), p2 = (int)p2s.at8(i);
+        Integer country = _p2c.get(p1);
         if( _p2c.get(p2)!=country ) continue; // p1,p2 not same country
-        SparseBitSet p3s = _p1p2s.get(p2);
-        for( long p3 : p3s.rawKeySet() )
-          if( p3!=0 && _p2c.get(p3)==country && _p1p2s.get(p1).tst(p3) ) // p1 knowns p3 also; p3 same country
+        SparseBitSetInt p3s = TSMB.P_KNOWS_P.get(p2);
+        for( int p3 : p3s.rawKeySet() )
+          if( p3!=0 && _p2c.get(p3)==country && TSMB.P_KNOWS_P.get(p1).tst(p3) ) // p1 knowns p3 also; p3 same country
             cnt+=2;             // twice, because triangulation
       }
       _cnt=cnt;
@@ -82,8 +81,8 @@ public class TSMB5 implements TSMB.TSMBI {
   }
   
   private static class BuildP2C extends MRTask<BuildP2C> {
-    transient NonBlockingHashMapLong<Long> _p2c;
-    @Override protected void setupLocal() { _p2c = new NonBlockingHashMapLong<Long>(); }
+    transient NonBlockingHashMapLong<Integer> _p2c;
+    @Override protected void setupLocal() { _p2c = new NonBlockingHashMapLong<Integer>(); }
     @Override public void map( Chunk pers, Chunk citys ) {
       for( int i=0; i<pers._len; i++ )
         _p2c.put(pers.at8(i),TSMB.CITY_COUNTRY.get(citys.at8(i)));

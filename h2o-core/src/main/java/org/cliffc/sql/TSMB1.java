@@ -41,9 +41,6 @@ public class TSMB1 implements TSMB.TSMBI {
   // Sparse bit set of comments/replyof.
   // Count tags of said comments.
 
-  // SF1:  Build SBS comment replys# 1274592, cids# 2580332 32 msec
-  // SF10: Build SBS comment replys#12668372, cids#25652008 297 msec
-  // SF100: Issue: OOM allocating NBHML with 256,520,080 slots...
   @Override public long run() {
     long t0 = System.currentTimeMillis(), t;
 

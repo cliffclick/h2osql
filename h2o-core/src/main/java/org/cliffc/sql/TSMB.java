@@ -127,8 +127,8 @@ public class TSMB {
 
     // ------------
     // Run all queries once
-    TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6(), new TSMB11()};
-    //TSMBI[] delves = new TSMBI[]{new TSMB6()}; // DEBUG one query
+    //TSMBI[] delves = new TSMBI[]{new TSMB1(), new TSMB5(),new TSMB6(), new TSMB11()};
+    TSMBI[] delves = new TSMBI[]{new TSMB11()}; // DEBUG one query
     System.out.println("--- Run Once ---");
     for( TSMBI query : delves ) {
       System.out.println("--- "+query.name()+" ---");

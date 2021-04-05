@@ -1179,6 +1179,7 @@ public class Vec extends Keyed<Vec> {
       return (c != null && c.chk2()==null && c._start <= i && i < c._start+ c._len) ? c : (_cache = chunkForRow(i));
     }
     public final long    at8( long i ) { return chk(i). at8_abs(i); }
+    public final int     at4( long i ) { return (int)chk(i). at8_abs(i); }
     public final double   at( long i ) { return chk(i).  at_abs(i); }
     public final boolean isNA(long i ) { return chk(i).isNA_abs(i); }
     public final BufferedString atStr(BufferedString sb, long i) { return chk(i).atStr_abs(sb, i); }

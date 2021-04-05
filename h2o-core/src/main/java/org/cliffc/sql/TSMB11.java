@@ -15,8 +15,8 @@ def q11 = count[person1, person2, person3:
     and person_knows_person(person1, person3)
 ]
 
-            Answer    H2O 20CPU
-SF0.1:      200280    0.000 sec
+            Answer    H2O 20CPU   DOVE1
+SF0.1:      200280    0.000 sec   5.350 sec
 SF1  :     3107478    0.015 sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
@@ -25,7 +25,7 @@ SF100:   487437702    4.365 sec
 
 public class TSMB11 implements TSMB.TSMBI {
   @Override public String name() { return "TSMB11"; }
-  static final boolean PRINT_TIMING = true;
+  static final boolean PRINT_TIMING = false;
 
   // -----------------------------------------------------------------
   // Do triangles via "worse case optimal join" or "dove-tail join".
@@ -52,7 +52,7 @@ public class TSMB11 implements TSMB.TSMBI {
     return cnt;
   }
 
-
+  // Make directed graph edges, undirected by duplication
   private static class Undirect extends MRTask<Undirect> {
     @Override public void map( Chunk cs[], NewChunk ncs[] ) {
       for( int i=0; i<cs[0]._len; i++ ) {
@@ -103,52 +103,47 @@ public class TSMB11 implements TSMB.TSMBI {
     // TODO: There's an efficiency hack, where i start from current pos instead
     // of from top-down.
     final int[] seek_lub(int[] es) {
-      int pos;
+      int e0 = _padx==0 ? es[1] : es[0];
+      int e1 = _padx==2 ? es[1] : es[2];
+      int pos = binsearch(e0,e1);
+      if( pos==_pos ) { _keys[_padx] = es[_padx];  return join_pos(es); }  // Only move pad
+      int x = pos < _nrows ? vx.at4(pos) : PINF;
+      int y = pos < _nrows ? vy.at4(pos) : PINF;
+      int k0= -1, k1= -1, k2= -1;
+
       switch( _padx ) {
       case 2:
-        pos = binsearch(es[0],es[1]);
-        if( pos==_pos ) {  _keys[2] = es[2];  return join_pos(es); }  // Only move pad
-        
-        // Pad key2 after key1 is reset
-        if( pos >= _nrows ) move(PINF,PINF,es[2] ); // At-end
-        else {
-          int k0 = vx.at4(pos), k1 = vy.at4(pos);
-          move(k0,k1, k0==es[0] && k1==es[1] ? es[2] : NINF );
-        }        
-        _pos = pos;
-        assert TSMB11.compareTo(_keys,es) >= 0;
-        return _keys;
+        // set key0,key1.  If either moves, reset key2
+        k0 = x;
+        k1 = y;
+        k2 = (pos < _nrows && !(k0==es[0] && k1==es[1])) ? NINF : es[2];
+        break;
         
       case 1:
-        pos = binsearch(es[0],es[2]);
-        int k1=es[1], k2;
-        if( pos==_pos ) {  _keys[1] = k1;  return join_pos(es); }  // Only move pad
-        int k0 = pos < _nrows ? vx.at4(pos) : PINF;
         // If key0 moves, instead advance the right-most pad.
+        k0 = x;
+        k1 = es[1];
+        k2 = y;
         if( k0!=es[0] ) { // key0 moves
           pos = binsearch(es[0],NINF);
-          k0 = vx.at4(pos);
-          k1++; // Advance right-most pad
+          assert pos < _nrows;
+          k0 = vx.at4(pos);     // Use original position
+          k1++;                 // Advance right-most pad
+          k2 = vy.at4(pos);
         }
-        k2 = pos < _nrows ? vy.at4(pos) : PINF;
-        move(k0,k1,k2);
-        _pos = pos;
-        assert TSMB11.compareTo(_keys,es) >= 0;
-        return _keys;
+        break;
         
       case 0:
-        pos = binsearch(es[1],es[2]);
-        if( pos==_pos ) {  _keys[0] = es[0];  return join_pos(es); }  // Only move pad
         // Keep pad key0 before any moving key; set key1,key2
-        if( pos >= _nrows ) move(es[0],PINF,       PINF       ); // At-end
-        else                move(es[0],vx.at4(pos),vy.at4(pos));
-        _pos = pos;
-        assert TSMB11.compareTo(_keys,es) >= 0;
-        return _keys;
-        
-      default:
-        throw new RuntimeException("unimpl");
+        k0 = es[0];
+        k1 = x;
+        k2 = y;
+        break;
       }
+      move(k0,k1,k2);
+      _pos = pos;
+      assert TSMB11.compareTo(_keys,es) >= 0;
+      return _keys;
     }
 
     int[] join_pos( int[] es ) { return TSMB11.compareTo(_keys,es) > 0 ? _keys : es;  }

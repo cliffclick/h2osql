@@ -28,7 +28,7 @@ This version is modified from the base version in Dove0 via:
 2-  manually inline padded iter ops
 3-  statically track which iters are at-position
 H2O brute force solution times is given above; it is about 360X faster.
-See Dove2 for an improved version.
+See Dove4 for an improved version.
  */
 
 public class Dove3 implements TSMB.TSMBI {

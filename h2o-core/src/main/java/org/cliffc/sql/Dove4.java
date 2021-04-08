@@ -12,9 +12,9 @@ def q11 = count[person1, person2, person3:
     and person_knows_person(person1, person3)
 ]
 
-            Answer    H2O 20CPU   DOVE2
-SF0.1:      200280    0.000 sec   0.350 sec
-SF1  :     3107478    0.015 sec   6.10 sec
+            Answer    H2O 20CPU   DOVE3
+SF0.1:      200280    0.000 sec   0. sec
+SF1  :     3107478    0.015 sec   0. sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
                       3.930 sec using 32bit person ids
@@ -26,12 +26,14 @@ Implementation of Dovetail Join by Todd Veldhuizen.
 This version is modified from the base version in Dove0 via:
 1-  removing the pad variables
 2-  manually inline padded iter ops
-H2O brute force solution times is given above; it is about 400X faster.
-See Dove3 for an improved version.
+3-  statically track which iters are at-position
+4-  statically track which positions are at -inf
+H2O brute force solution times is given above; it is about X faster.
+See Dove5 for an improved version.
  */
 
-public class Dove2 implements TSMB.TSMBI {
-  @Override public String name() { return "Dove2"; }
+public class Dove4 implements TSMB.TSMBI {
+  @Override public String name() { return "Dove4"; }
   static final boolean PRINT_TIMING = false;
 
   // -----------------------------------------------------------------
@@ -56,6 +58,7 @@ public class Dove2 implements TSMB.TSMBI {
     sids.delete();
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Dovetail "+(t-t0)+" msec"); t0=t; }
 
+    assert cnt==200280;
     return cnt;
   }
 
@@ -82,7 +85,6 @@ public class Dove2 implements TSMB.TSMBI {
   private abstract static class Iter {
     final static int PINF = Integer.MAX_VALUE-1;
     final static int NINF = -1; // compare of any 2 keys uses subtract, which cannot wrap.
-    final int _ix, _iy;         // Index of the keys in the padded-key layout
     // The 2-D relation being walked over.  The relation is of the form (X<->Y)
     // and is fairly sparse.  The encoding is a sorted list of (X,Y) pairs.
     final Vec.Reader _vx,_vy;   // Underlying bits being iterated over
@@ -93,35 +95,22 @@ public class Dove2 implements TSMB.TSMBI {
       _nrows = (int)vec0.length();
       _vx = vec0.new Reader();
       _vy = vec1.new Reader();
-      _ix = ix();
-      _iy = iy();
-      _kx = _vx.at4(0);
-      _ky = _vy.at4(0);
+      _pos= 0;
+      _kx = NINF;
+      _ky = NINF;
     }
 
-    // Return key[i]
-    int keyi( int[] es, int i ) {
-      if( i==_ix ) return _kx;
-      if( i==_iy ) return _ky;
-      return es[i];
-    }
-
-    // Compare two (padded) iterators lexicographically.
-    public int cmp( int[] es, Iter iter ) {
-      for( int i=0; i<es.length; i++ ) {
-        int d = keyi(es,i)-iter.keyi(es,i);
-        if( d!=0 ) return d;
-      }
-      return 0;
-    }
-    abstract int ix();
-    abstract int iy();
     // Compare against join point
     abstract int cmp( int[] es );
   
+    boolean check_pos(int[]es, boolean before) {
+      int tmp=cmp(es);
+      return before ? tmp < 0 : tmp == 0;
+    }
+
 
     // Seek a few nearby positions before falling back to binary search to the LUB.
-    final int seek( int key0, int key1 ) {
+    final void seek( int key0, int key1 ) {
       // Always seeking forwards
       assert _pos==0 || _pos==_nrows || // At end, OR
         _vx.at4(_pos) < key0 || // before (key0,key1).  
@@ -132,11 +121,12 @@ public class Dove2 implements TSMB.TSMBI {
         int ky = _vy.at4(_pos+i);
         if( kx>key0 || (kx==key0 && ky>=key1) ) {
           _kx=kx; _ky=ky;
-          return _pos = _pos+i; // Found LUB
+          _pos = _pos + i;
+          return; // Found LUB
         }
       }
       // Tried linear scan, didn't work, use binary search
-      return (_pos = binsearch(key0, key1));
+      _pos = binsearch(key0, key1);
     }
 
     // Top-down find LUB.
@@ -159,18 +149,7 @@ public class Dove2 implements TSMB.TSMBI {
       return ub; // -ub-1; Can flag the miss, if desired
     }
 
-    @Override public String toString() {
-      SB sb = new SB().p("[");
-      for( int i=0; i<3; i++ ) {
-        sb.p(' ');
-        if( i== _ix ) str(sb,_kx);
-        else if( i== _iy ) str(sb,_ky);
-        else sb.p('_');
-        sb.p(',');
-      }
-      return sb.unchar().p(" ]").toString();
-    }
-    private static SB str(SB sb, int key) {
+    static SB str(SB sb, int key) {
       if( key == NINF ) return sb.p("-inf");
       if( key == PINF ) return sb.p("+inf");
       return sb.p(key);
@@ -178,32 +157,44 @@ public class Dove2 implements TSMB.TSMBI {
   }
   private static class IterR extends Iter {
     IterR(Vec v0, Vec v1) { super(v0,v1); }
-    @Override int ix( ) { return 0; }
-    @Override int iy( ) { return 1; }
     // Compare against the join point
     @Override int cmp( int[] es ) {
       int dx = _kx-es[0];
       return dx==0 ? _ky-es[1] : dx;
     }
+    @Override public String toString() {
+      SB sb = new SB().p("[ ");
+      str(sb,_kx).p(", ");
+      str(sb,_ky).p(", _");
+      return sb.p(" ]").toString();
+    }
   }
   private static class IterS extends Iter {
     IterS(Vec v0, Vec v1) { super(v0,v1); }
-    @Override int ix( ) { return 0; }
-    @Override int iy( ) { return 2; }
     // Compare against the join point
     @Override int cmp( int[] es ) {
       int dx = _kx-es[0];
       return dx==0 ? _ky-es[2] : dx;
     }
+    @Override public String toString() {
+      SB sb = new SB().p("[ ");
+      str(sb,_kx).p(", _,");
+      str(sb,_ky);
+      return sb.p(" ]").toString();
+    }
   }
   private static class IterT extends Iter {
     IterT(Vec v0, Vec v1) { super(v0,v1); }
-    @Override int ix( ) { return 1; }
-    @Override int iy( ) { return 2; }
     // Compare against the join point
     @Override int cmp( int[] es ) {
       int dx = _kx-es[1];
       return dx==0 ? _ky-es[2] : dx;
+    }
+    @Override public String toString() {
+      SB sb = new SB().p("[ _, ");
+      str(sb,_kx).p(", ");
+      str(sb,_ky);
+      return sb.p(" ]").toString();
     }
   }
 
@@ -216,7 +207,6 @@ public class Dove2 implements TSMB.TSMBI {
     final IterR iter_r = new IterR(v0,v1);
     final IterS iter_s = new IterS(v0,v1);
     final IterT iter_t = new IterT(v0,v1);
-    final Iter[] iters = new Iter[]{iter_r,iter_s,iter_t};
 
     // Original join point, just uses the zero element.
     final int e0 = (int)v0.at8(0);
@@ -226,49 +216,21 @@ public class Dove2 implements TSMB.TSMBI {
     // Until at_end, find first minimal iter, and seek_lub.
     int debug_cnt=0, DEBUG_CNT=-1;
     long cnt=0;                 // The answer
+    int state=0;                // which iters are at-position
     while( !at_end(es) ) {
-      // Find minimal iter
-      int iter_min = min_iter(es,iters);
 
-      // Seek Least-Upper-Bound of iter n.  Adjusts elements of join point 'es'
-      // to match the iter that moves.
-      // Seek-to-pad the remaining iters
-      switch( iter_min ) {
-      case 0:
-        iter_r.seek(es[0],es[1]);
-        if( es[0]!=iter_r._kx ) { iter_t._kx = iter_t._ky = Iter.NINF; iter_t._pos=0; } // Reset after pad
-        if( es[1]!=iter_r._ky ) { iter_s._ky = Iter.NINF;  iter_s._pos=0; } // Reset after pad
-        if( !(iter_r._kx==es[0] && iter_r._ky==es[1]))  es[2] = Iter.NINF; // moves the pad; need to 'seek' others
-        es[0] = iter_r._kx;
-        es[1] = iter_r._ky;
-        break;
-      case 1:
-        iter_s.seek(es[0],es[2]);
-        // If key0 moves, bump right-most trailing pad by 1 & use NINF for remaining keys
-        if( iter_s._kx!=es[0] ) {        // key0 moves
-          iter_s._pos = iter_s.binsearch(es[0],Iter.NINF);
-          es[1]++;     // Advance pad just left of right-most reset key          
-        }
-        es[2] = iter_s._ky;
-        break;
-      case 2:
-        iter_t.seek(es[1],es[2]);
-        if( es[1]!=iter_t._kx ) { iter_s._ky = Iter.NINF; iter_s._pos=0; } // Reset after pad
-        // Keep pad key0 before any moving key; set key1,key2
-        es[1] = iter_t._kx; 
-        es[2] = iter_t._ky;
-        break;
-      default: throw new RuntimeException();
-      }
+      if(      (state&1)==0 )  state = seek_R(iter_r,iter_s,iter_t,es,state);
+      else if( (state&2)==0 )  state = seek_S(iter_r,iter_s,iter_t,es,state);
+      else if( (state&4)==0 )  state = seek_T(iter_r,iter_s,iter_t,es,state);
+      assert iter_r.check_pos(es,(state&1)==0);
+      assert iter_s.check_pos(es,(state&2)==0);
+      assert iter_t.check_pos(es,(state&4)==0);
       
-      assert iter_r.cmp(es) <= 0;
-      assert iter_s.cmp(es) <= 0;
-      assert iter_t.cmp(es) <= 0;
-        
       // Are all iters at the join position?
-      if( at_pos(es,iters) ) {
+      if( state==7 ) {
         cnt++;                  // Found a join element; do join work
         es[es.length-1]++;      // Bump the innermost join point
+        state=1;                // R keeps at-pos, but S & T do not
       }
       debug_cnt++;
     }
@@ -276,22 +238,48 @@ public class Dove2 implements TSMB.TSMBI {
     return cnt;
   }
 
-  // Find the least iterator from a set of iterators
-  private static int min_iter( int[] es, Iter[] iters ) {
-    int min=0;
-    for( int i=1; i<iters.length; i++ ) {
-      int cmp = iters[min].cmp(es,iters[i]);
-      if( cmp > 0 ) min=i;
+  private static int seek_R(IterR iter_r, IterS iter_s, IterT iter_t, int[] es, int state) {
+    // Seek LUB for iterR, seek PAD for iterS,T
+    iter_r.seek(es[0],es[1]);
+    if( es[0]!=iter_r._kx ) {
+      es[0] = iter_r._kx;       // Moving es[0] might blow iter_s
+      iter_t._kx = iter_t._ky = es[2] = Iter.NINF; // iter_t is defnitely blown
+      iter_t._pos=0;
+      state&=3;                                    // clear iter_t
     }
-    return min;
+    if( es[1]!=iter_r._ky ) { // Reset after pad, iter_s not-at-pos
+      es[1] = iter_r._ky;     // Moving es[1] might bot iter_t
+      iter_s._ky = es[2] = Iter.NINF;
+      iter_s._pos=0;
+      state = es[0]==iter_s._kx ? 2 : 0;
+    } 
+    return state|1;
   }
-    
-  // At-position; all iters at the join position
-  private static boolean at_pos( int[] es, Iter[] iters ) {
-    for( Iter iter : iters )
-      if( iter.cmp(es) != 0 )
-        return false;
-    return true;
+  private static int seek_S(IterR iter_r, IterS iter_s, IterT iter_t, int[] es, int state) {
+    // Seek LUB for iterS, seek PAD for iterR,T
+    iter_s.seek(es[0],es[2]);
+    // If key0 moves, bump right-most trailing pad by 1 & use NINF for remaining keys
+    if( iter_s._kx!=es[0] ) {        // key0 moves
+      iter_s._pos = iter_s.binsearch(es[0],Iter.NINF);
+      es[1]++;     // Advance pad just left of right-most reset key
+      state = 0;   // iter-T and iter-R is not at-pos
+    } else {
+      if( iter_t._kx!=es[1] || iter_t._ky!=iter_s._ky )  state &= 3; // iter-T is not-at-pos.
+    }
+    es[2] = iter_s._ky;
+    // iter-R is unchanged
+    // iter-S is at-pos
+    return state|2;
+  }
+  private static int seek_T(IterR iter_r, IterS iter_s, IterT iter_t, int[] es, int state) {
+    // Seek LUB for iterT, seek PAD for iterR,S
+    iter_t.seek(es[1],es[2]);
+    if( es[1]!=iter_t._kx ) { iter_s._ky = Iter.NINF; iter_s._pos=0; state&=4; } // Reset after pad; moves es[1] so blows R,S
+    // Keep pad key0 before any moving key; set key1,key2
+    es[1] = iter_t._kx; 
+    if( es[2]!=iter_t._ky ) state&=5; // blows S
+    es[2] = iter_t._ky;
+    return state|4;
   }
 
   private static boolean at_end( int[] es ) { return es[0]== Iter.PINF; }

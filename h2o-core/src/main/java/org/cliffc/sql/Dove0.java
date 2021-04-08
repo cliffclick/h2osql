@@ -58,6 +58,7 @@ public class Dove0 implements TSMB.TSMBI {
     sids.delete();
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Dovetail "+(t-t0)+" msec"); t0=t; }
 
+    assert cnt==200280; // actually only valid for SF0.1
     return cnt;
   }
 
@@ -135,9 +136,10 @@ public class Dove0 implements TSMB.TSMBI {
         if( k0!=es[0] ) { // key0 moves
           pos = binsearch(es[0],NINF);
           assert pos < _nrows;
-          k0 = vx.at4(pos);     // Use original position
-          k1++;                 // Advance right-most pad
-          k2 = vy.at4(pos);
+          assert es[0]==vx.at4(pos);
+          k0 = es[0];           // Use original position
+          k1++;                 // Advance pad just left of right-most reset key
+          k2 = vy.at4(pos);     // Reset to min for k0
         }
         break;
         
@@ -227,7 +229,7 @@ public class Dove0 implements TSMB.TSMBI {
     int[] es0 = new int[]{e0,e0,e0}, es = es0;
 
     // Until at_end, find first minimal iter, and seek_lub.
-    int debug_cnt=0;
+    int debug_cnt=0, DEBUG_CNT=-1;
     long cnt=0;
     while( !at_end(iters) ) {
       // Find minimal iter

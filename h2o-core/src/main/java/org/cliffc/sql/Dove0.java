@@ -16,8 +16,8 @@ def q11 = count[person1, person2, person3:
 ]
 
             Answer    H2O 20CPU   DOVE0
-SF0.1:      200280    0.000 sec   5.350 sec
-SF1  :     3107478    0.015 sec
+SF0.1:      200280    0.000 sec   0.360 sec
+SF1  :     3107478    0.015 sec   7.100 sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
                       3.930 sec using 32bit person ids
@@ -28,13 +28,13 @@ SF100:   487437702    4.365 sec
 Implementation of Dovetail Join by Todd Veldhuizen.
 
 This is the simplist, most inefficient version, working a simple triangle problem.
-H2O brute force solution times is given above; it is about 1000x faster.
+H2O brute force solution times is given above; it is about 475x faster.
 See Dove1 for an improved version.
  */
 
 public class Dove0 implements TSMB.TSMBI {
   @Override public String name() { return "Dove0"; }
-  static final boolean PRINT_TIMING = true;
+  static final boolean PRINT_TIMING = false;
 
   // -----------------------------------------------------------------
   // Do triangles via "worse case optimal join" or "dove-tail join".
@@ -114,8 +114,10 @@ public class Dove0 implements TSMB.TSMBI {
     final int[] seek_lub(int[] es) {
       int e0 = _padx==0 ? es[1] : es[0];
       int e1 = _padx==2 ? es[1] : es[2];
-      int pos = binsearch(e0,e1);
+      int pos = _pos;
+      seek(e0,e1);
       if( pos==_pos ) { _keys[_padx] = es[_padx];  return join_pos(es); }  // Only move pad
+      pos = _pos;
       int x = pos < _nrows ? vx.at4(pos) : PINF;
       int y = pos < _nrows ? vy.at4(pos) : PINF;
       int k0= -1, k1= -1, k2= -1;
@@ -134,12 +136,10 @@ public class Dove0 implements TSMB.TSMBI {
         k1 = es[1];
         k2 = y;
         if( k0!=es[0] ) { // key0 moves
-          pos = binsearch(es[0],NINF);
-          assert pos < _nrows;
-          assert es[0]==vx.at4(pos);
+          _pos = binsearch(es[0],NINF);
           k0 = es[0];           // Use original position
           k1++;                 // Advance pad just left of right-most reset key
-          k2 = vy.at4(pos);     // Reset to min for k0
+          k2 = vy.at4(_pos);    // Reset to min for k0
         }
         break;
         
@@ -151,13 +151,31 @@ public class Dove0 implements TSMB.TSMBI {
         break;
       }
       move(k0,k1,k2);
-      _pos = pos;
       assert cmp(_keys,es) >= 0;
       return _keys;
     }
 
     int[] join_pos( int[] es ) { return cmp(_keys,es) > 0 ? _keys : es;  }
     
+    // Seek a few nearby positions before falling back to binary search to the LUB.
+    final int seek( int key0, int key1 ) {
+      // Always seeking forwards
+      if( _pos==-1 ) _pos=0;
+      if( _pos < _nrows &&
+          (vx.at4(_pos) < key0 || // before (key0,key1).  
+           (vx.at4(_pos) == key0 && vy.at(_pos)<=key1 )) )
+        // Try a few nearby positions
+        for( int i=0; i<24 && _pos+i<_nrows; i++ ) {
+          int kx = vx.at4(_pos+i);
+          int ky = vy.at4(_pos+i);
+          if( kx>key0 || (kx==key0 && ky>=key1) ) {
+            return _pos = _pos+i; // Found LUB
+          }
+        }
+      // Tried linear scan, didn't work, use binary search
+      return (_pos = binsearch(key0, key1));
+    }
+
     // Top-down find LUB...
     final int binsearch( int key0, int key1 ) {
       int lb = 0, ub = _nrows;

@@ -13,8 +13,8 @@ def q11 = count[person1, person2, person3:
 ]
 
             Answer    H2O 20CPU   DOVE3
-SF0.1:      200280    0.000 sec   3.3 sec
-SF1  :     3107478    0.015 sec  77.0 sec
+SF0.1:      200280    0.000 sec   0.350 sec
+SF1  :     3107478    0.015 sec   5.500 sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
                       3.930 sec using 32bit person ids
@@ -27,7 +27,7 @@ This version is modified from the base version in Dove0 via:
 1-  removing the pad variables
 2-  manually inline padded iter ops
 3-  statically track which iters are at-position
-H2O brute force solution times is given above; it is about X faster.
+H2O brute force solution times is given above; it is about 360X faster.
 See Dove2 for an improved version.
  */
 
@@ -88,6 +88,7 @@ public class Dove3 implements TSMB.TSMBI {
     // and is fairly sparse.  The encoding is a sorted list of (X,Y) pairs.
     final Vec.Reader _vx,_vy;   // Underlying bits being iterated over
     final int _nrows;           // Fast/local number of encoded rows, or set-bits in the relation
+    int _pos;
     int _kx, _ky;               // Key x,y
     Iter(Vec vec0, Vec vec1) {
       _nrows = (int)vec0.length();
@@ -95,6 +96,7 @@ public class Dove3 implements TSMB.TSMBI {
       _vy = vec1.new Reader();
       _ix = ix();
       _iy = iy();
+      _pos= 0;
       _kx = NINF;
       _ky = NINF;
     }
@@ -120,9 +122,26 @@ public class Dove3 implements TSMB.TSMBI {
     abstract int cmp( int[] es );
   
 
+    // Seek a few nearby positions before falling back to binary search to the LUB.
+    final int seek( int key0, int key1 ) {
+      // Always seeking forwards
+      assert _pos==0 || _pos==_nrows || // At end, OR
+        _vx.at4(_pos) < key0 || // before (key0,key1).  
+        (_vx.at4(_pos) == key0 && _vy.at(_pos)<=key1 );
+      // Try a few nearby positions
+      for( int i=0; i<24 && _pos+i<_nrows; i++ ) {
+        int kx = _vx.at4(_pos+i);
+        int ky = _vy.at4(_pos+i);
+        if( kx>key0 || (kx==key0 && ky>=key1) ) {
+          _kx=kx; _ky=ky;
+          return _pos = _pos+i; // Found LUB
+        }
+      }
+      // Tried linear scan, didn't work, use binary search
+      return (_pos = binsearch(key0, key1));
+    }
+
     // Top-down find LUB.
-    // TODO: There's an efficiency hack, where i start from current pos instead
-    // of from top-down.
     final int binsearch( int key0, int key1 ) {
       int lb = 0, ub = _nrows;
       while( lb < ub ) {
@@ -233,25 +252,27 @@ public class Dove3 implements TSMB.TSMBI {
 
   private static int seek_R(IterR iter_r, IterS iter_s, IterT iter_t, int[] es, int state) {
     // Seek LUB for iterR, seek PAD for iterS,T
-    iter_r.binsearch(es[0],es[1]);
+    iter_r.seek(es[0],es[1]);
     if( es[0]!=iter_r._kx ) {
       es[0] = iter_r._kx;       // Moving es[0] might blow iter_s
       iter_t._kx = iter_t._ky = es[2] = Iter.NINF; // iter_t is defnitely blown
+      iter_t._pos=0;
       state&=3;                                    // clear iter_t
     }
     if( es[1]!=iter_r._ky ) { // Reset after pad, iter_s not-at-pos
       es[1] = iter_r._ky;     // Moving es[1] might bot iter_t
       iter_s._ky = es[2] = Iter.NINF;
+      iter_s._pos=0;
       state = es[0]==iter_s._kx ? 2 : 0;
     } 
     return state|1;
   }
   private static int seek_S(IterR iter_r, IterS iter_s, IterT iter_t, int[] es, int state) {
     // Seek LUB for iterS, seek PAD for iterR,T
-    iter_s.binsearch(es[0],es[2]);
+    iter_s.seek(es[0],es[2]);
     // If key0 moves, bump right-most trailing pad by 1 & use NINF for remaining keys
     if( iter_s._kx!=es[0] ) {        // key0 moves
-      iter_s.binsearch(es[0],Iter.NINF);
+      iter_s._pos = iter_s.binsearch(es[0],Iter.NINF);
       es[1]++;     // Advance pad just left of right-most reset key
       state = 0;   // iter-T and iter-R is not at-pos
     } else {
@@ -264,8 +285,8 @@ public class Dove3 implements TSMB.TSMBI {
   }
   private static int seek_T(IterR iter_r, IterS iter_s, IterT iter_t, int[] es, int state) {
     // Seek LUB for iterT, seek PAD for iterR,S
-    iter_t.binsearch(es[1],es[2]);
-    if( es[1]!=iter_t._kx ) { iter_s._ky = Iter.NINF; state&=4; } // Reset after pad; moves es[1] so blows R,S
+    iter_t.seek(es[1],es[2]);
+    if( es[1]!=iter_t._kx ) { iter_s._ky = Iter.NINF; iter_s._pos=0; state&=4; } // Reset after pad; moves es[1] so blows R,S
     // Keep pad key0 before any moving key; set key1,key2
     es[1] = iter_t._kx; 
     if( es[2]!=iter_t._ky ) state&=5; // blows S

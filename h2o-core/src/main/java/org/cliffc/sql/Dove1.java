@@ -13,8 +13,8 @@ def q11 = count[person1, person2, person3:
 ]
 
             Answer    H2O 20CPU   DOVE1
-SF0.1:      200280    0.000 sec   3.09 sec
-SF1  :     3107478    0.015 sec
+SF0.1:      200280    0.000 sec   3.60 sec
+SF1  :     3107478    0.015 sec   6.30 sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
                       3.930 sec using 32bit person ids
@@ -25,7 +25,7 @@ Implementation of Dovetail Join by Todd Veldhuizen.
 
 This version is modified from the base version in Dove0 via:
 1-  removing the pad variables
-H2O brute force solution times is given above; it is about 1000X faster.
+H2O brute force solution times is given above; it is about 420X faster.
 See Dove2 for an improved version.
  */
 
@@ -87,6 +87,7 @@ public class Dove1 implements TSMB.TSMBI {
     // and is fairly sparse.  The encoding is a sorted list of (X,Y) pairs.
     final Vec.Reader _vx,_vy;   // Underlying bits being iterated over
     final int _nrows;           // Fast/local number of encoded rows, or set-bits in the relation
+    int _pos=0;
     int _kx, _ky;               // Key x,y
     Iter(Vec vec0, Vec vec1) {
       _nrows = (int)vec0.length();
@@ -123,9 +124,26 @@ public class Dove1 implements TSMB.TSMBI {
     abstract void seek_lub( int[] es );
     abstract void seek_pad( int[] prev, int[] es );
 
+    // Seek a few nearby positions before falling back to binary search to the LUB.
+    final int seek( int key0, int key1 ) {
+      // Always seeking forwards
+      assert _pos==0 || _pos==_nrows || // At end, OR
+        _vx.at4(_pos) < key0 || // before (key0,key1).  
+        (_vx.at4(_pos) == key0 && _vy.at(_pos)<=key1 );
+      // Try a few nearby positions
+      for( int i=0; i<24 && _pos+i<_nrows; i++ ) {
+        int kx = _vx.at4(_pos+i);
+        int ky = _vy.at4(_pos+i);
+        if( kx>key0 || (kx==key0 && ky>=key1) ) {
+          _kx=kx; _ky=ky;
+          return _pos = _pos+i; // Found LUB
+        }
+      }
+      // Tried linear scan, didn't work, use binary search
+      return (_pos = binsearch(key0, key1));
+    }
+
     // Top-down find LUB.
-    // TODO: There's an efficiency hack, where i start from current pos instead
-    // of from top-down.
     final int binsearch( int key0, int key1 ) {
       int lb = 0, ub = _nrows;
       while( lb < ub ) {
@@ -170,9 +188,9 @@ public class Dove1 implements TSMB.TSMBI {
     // Seek Least-Upper-Bound of iter n.  Adjusts elements of 'es' to match the
     // iter that moves.
     @Override void seek_lub(int[] es) {
-      int pos = binsearch(es[0],es[1]);
+      seek(es[0],es[1]);
       // set key0,key1.  If either moves, reset key2
-      if( pos < _nrows && !(_kx==es[0] && _ky==es[1]))
+      if( _pos < _nrows && !(_kx==es[0] && _ky==es[1]))
         es[2] = NINF;         // moves the pad; need to 'seek' others
       es[0] = _kx;
       es[1] = _ky;
@@ -186,16 +204,15 @@ public class Dove1 implements TSMB.TSMBI {
     @Override void seek_pad( int[] prev, int[] es ) {
       if( prev[1]==es[1] ) return; // pad did not move, so iter does not move
       _ky = NINF; // Reset after pad
+      _pos=0;
     }
     // Seek Least-Upper-Bound of iter n.  Adjusts elements of 'es' to match the
     // iter that moves.
     @Override void seek_lub(int[] es) {
-      binsearch(es[0],es[2]);
+      seek(es[0],es[2]);
       // If key0 moves, bump right-most trailing pad by 1 & use NINF for remaining keys
       if( _kx!=es[0] ) {        // key0 moves
-        int pos2 = binsearch(es[0],NINF);
-        //assert pos2 < _nrows;
-        //assert es[0]==_vx.at4(pos2);
+        _pos = binsearch(es[0],NINF);
         es[1]++;     // Advance pad just left of right-most reset key          
       }
       es[2] = _ky;
@@ -210,11 +227,12 @@ public class Dove1 implements TSMB.TSMBI {
       if( prev[0]==es[0] ) return; // pad did not move, so iter does not move
       _kx = NINF; // Reset after pad
       _ky = NINF; // Reset after pad
+      _pos=0;
     }
     // Seek Least-Upper-Bound of iter n.  Adjusts elements of 'es' to match the
     // iter that moves.
     @Override void seek_lub(int[] es) {
-      binsearch(es[1],es[2]);
+      seek(es[1],es[2]);
       // Keep pad key0 before any moving key; set key1,key2
       es[1] = _kx;
       es[2] = _ky;

@@ -23,7 +23,7 @@ SF100:   487437702    4.365 sec
 /*
 Implementation of Dovetail Join by Todd Veldhuizen.
 
-This version is modifed from the base version in Dove0 via:
+This version is modified from the base version in Dove0 via:
 1-  removing the pad variables
 H2O brute force solution times is given above; it is about 1000X faster.
 See Dove2 for an improved version.

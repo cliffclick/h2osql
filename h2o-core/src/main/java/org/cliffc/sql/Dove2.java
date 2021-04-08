@@ -13,8 +13,8 @@ def q11 = count[person1, person2, person3:
 ]
 
             Answer    H2O 20CPU   DOVE2
-SF0.1:      200280    0.000 sec   . sec
-SF1  :     3107478    0.015 sec
+SF0.1:      200280    0.000 sec   3.20 sec
+SF1  :     3107478    0.015 sec  71.00 sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
                       3.930 sec using 32bit person ids
@@ -23,10 +23,10 @@ SF100:   487437702    4.365 sec
 /*
 Implementation of Dovetail Join by Todd Veldhuizen.
 
-This version is modifed from the base version in Dove0 via:
+This version is modified from the base version in Dove0 via:
 1-  removing the pad variables
 2-  manually inline padded iter ops
-H2O brute force solution times is given above; it is about X faster.
+H2O brute force solution times is given above; it is about 5000X faster.
 See Dove2 for an improved version.
  */
 
@@ -56,7 +56,6 @@ public class Dove2 implements TSMB.TSMBI {
     sids.delete();
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Dovetail "+(t-t0)+" msec"); t0=t; }
 
-    assert cnt==200280; // actually only valid for SF0.1
     return cnt;
   }
 
@@ -116,10 +115,6 @@ public class Dove2 implements TSMB.TSMBI {
     }
     abstract int ix();
     abstract int iy();
-    // Seek LUB past join
-    abstract void seek_lub( int[] es );
-    // Seek the LUB just greater than the least pad that moved vs previous
-    abstract void seek_pad( int[] prev, int[] es );
     // Compare against join point
     abstract int cmp( int[] es );
   
@@ -167,18 +162,6 @@ public class Dove2 implements TSMB.TSMBI {
     IterR(Vec v0, Vec v1) { super(v0,v1); }
     @Override int ix( ) { return 0; }
     @Override int iy( ) { return 1; }
-    @Override void seek_pad( int[] prev, int[] es ) { /*empty; pad after, no seek required*/}
-    // Seek Least-Upper-Bound of iter n.  Adjusts elements of 'es' to match the
-    // iter that moves.
-    @Override void seek_lub(int[] es) {
-      int pos = binsearch(es[0],es[1]);
-      // set key0,key1.  If either moves, reset key2
-      if( pos < _nrows && !(_kx==es[0] && _ky==es[1]))
-        es[2] = NINF;         // moves the pad; need to 'seek' others
-      es[0] = _kx;
-      es[1] = _ky;
-      assert cmp(es) == 0;
-    }
     // Compare against the join point
     @Override int cmp( int[] es ) {
       int dx = _kx-es[0];
@@ -189,24 +172,6 @@ public class Dove2 implements TSMB.TSMBI {
     IterS(Vec v0, Vec v1) { super(v0,v1); }
     @Override int ix( ) { return 0; }
     @Override int iy( ) { return 2; }
-    @Override void seek_pad( int[] prev, int[] es ) {
-      if( prev[1]==es[1] ) return; // pad did not move, so iter does not move
-      _ky = NINF; // Reset after pad
-    }
-    // Seek Least-Upper-Bound of iter n.  Adjusts elements of 'es' to match the
-    // iter that moves.
-    @Override void seek_lub(int[] es) {
-      binsearch(es[0],es[2]);
-      // If key0 moves, bump right-most trailing pad by 1 & use NINF for remaining keys
-      if( _kx!=es[0] ) {        // key0 moves
-        int pos2 = binsearch(es[0],NINF);
-        //assert pos2 < _nrows;
-        //assert es[0]==_vx.at4(pos2);
-        es[1]++;     // Advance pad just left of right-most reset key          
-      }
-      es[2] = _ky;
-      assert cmp(es) == 0;
-    }
     // Compare against the join point
     @Override int cmp( int[] es ) {
       int dx = _kx-es[0];
@@ -217,20 +182,6 @@ public class Dove2 implements TSMB.TSMBI {
     IterT(Vec v0, Vec v1) { super(v0,v1); }
     @Override int ix( ) { return 1; }
     @Override int iy( ) { return 2; }
-    @Override void seek_pad( int[] prev, int[] es ) {
-      if( prev[0]==es[0] ) return; // pad did not move, so iter does not move
-      _kx = NINF; // Reset after pad
-      _ky = NINF; // Reset after pad
-    }
-    // Seek Least-Upper-Bound of iter n.  Adjusts elements of 'es' to match the
-    // iter that moves.
-    @Override void seek_lub(int[] es) {
-      binsearch(es[1],es[2]);
-      // Keep pad key0 before any moving key; set key1,key2
-      es[1] = _kx;
-      es[2] = _ky;
-      assert cmp(es) == 0;
-    }
     // Compare against the join point
     @Override int cmp( int[] es ) {
       int dx = _kx-es[1];
@@ -256,30 +207,38 @@ public class Dove2 implements TSMB.TSMBI {
 
     // Until at_end, find first minimal iter, and seek_lub.
     int debug_cnt=0, DEBUG_CNT=-1;
-    long cnt=0;
+    long cnt=0;                 // The answer
     while( !at_end(es) ) {
       // Find minimal iter
-      int iter_min = min_iter(es,iters), prev0, prev1;
+      int iter_min = min_iter(es,iters);
 
       // Seek Least-Upper-Bound of iter n.  Adjusts elements of join point 'es'
       // to match the iter that moves.
       // Seek-to-pad the remaining iters
       switch( iter_min ) {
       case 0:
-        prev0 = es[0];  prev1 = es[1];
-        iter_r.seek_lub(es);
-        if( prev0!=es[0] ) iter_t._kx = iter_t._ky = Iter.NINF;  // Reset after pad
-        if( prev1!=es[1] ) iter_s._ky = Iter.NINF; // Reset after pad
+        iter_r.binsearch(es[0],es[1]);
+        if( es[0]!=iter_r._kx ) iter_t._kx = iter_t._ky = Iter.NINF;  // Reset after pad
+        if( es[1]!=iter_r._ky ) iter_s._ky = Iter.NINF; // Reset after pad
+        if( !(iter_r._kx==es[0] && iter_r._ky==es[1]))  es[2] = Iter.NINF; // moves the pad; need to 'seek' others
+        es[0] = iter_r._kx;
+        es[1] = iter_r._ky;
         break;
       case 1:
-        prev0 = es[0];
-        iter_s.seek_lub(es);
-        if( prev0!=es[0] ) iter_t._kx = iter_t._ky = Iter.NINF;  // Reset after pad
+        iter_s.binsearch(es[0],es[2]);
+        // If key0 moves, bump right-most trailing pad by 1 & use NINF for remaining keys
+        if( iter_s._kx!=es[0] ) {        // key0 moves
+          iter_s.binsearch(es[0],Iter.NINF);
+          es[1]++;     // Advance pad just left of right-most reset key          
+        }
+        es[2] = iter_s._ky;
         break;
       case 2:
-        prev1 = es[1];
-        iter_t.seek_lub(es);
-        if( prev1!=es[1] ) iter_s._ky = Iter.NINF; // Reset after pad
+        iter_t.binsearch(es[1],es[2]);
+        if( es[1]!=iter_t._kx ) iter_s._ky = Iter.NINF; // Reset after pad
+        // Keep pad key0 before any moving key; set key1,key2
+        es[1] = iter_t._kx; 
+        es[2] = iter_t._ky;
         break;
       default: throw new RuntimeException();
       }

@@ -12,9 +12,9 @@ def q11 = count[person1, person2, person3:
     and person_knows_person(person1, person3)
 ]
 
-            Answer    H2O 20CPU   DOVE4
-SF0.1:      200280    0.000 sec   0.350 sec
-SF1  :     3107478    0.015 sec   5.500 sec
+            Answer    H2O 20CPU   DOVE5
+SF0.1:      200280    0.000 sec   0. sec
+SF1  :     3107478    0.015 sec   0. sec
 SF10 :    37853736    0.283 sec
 SF100:   487437702    4.365 sec
                       3.930 sec using 32bit person ids
@@ -28,12 +28,13 @@ This version is modified from the base version in Dove0 via:
 2-  manually inline padded iter ops
 3-  statically track which iters are at-position
 4-  statically track which positions are at -inf - NOT DONE (because its super cheap here)
-H2O brute force solution times is given above; it is about 360X faster.
-See Dove5 for an improved version.
+5-  smarter iterator to advance
+H2O brute force solution times is given above; it is about X faster.
+See Dove6 for an improved version.
  */
 
-public class Dove4 implements TSMB.TSMBI {
-  @Override public String name() { return "Dove4"; }
+public class Dove5 implements TSMB.TSMBI {
+  @Override public String name() { return "Dove5"; }
   static final boolean PRINT_TIMING = false;
 
   // -----------------------------------------------------------------

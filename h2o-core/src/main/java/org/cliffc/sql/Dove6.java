@@ -12,11 +12,11 @@ def q11 = count[person1, person2, person3:
     and person_knows_person(person1, person3)
 ]
 
-            Answer    H2O 20CPU   DOVE5
-SF0.1:      200280    0.000 sec   0.330 sec
-SF1  :     3107478    0.015 sec   5.40  sec
-SF10 :    37853736    0.283 sec
-SF100:   487437702    4.365 sec
+            Answer    H2O 20CPU   DOVE6
+SF0.1:      200280    0.000 sec   0.057  sec
+SF1  :     3107478    0.015 sec   0.493  sec
+SF10 :    37853736    0.283 sec   7.140  sec
+SF100:   487437702    4.365 sec 115.000  sec
                       3.930 sec using 32bit person ids
 */
 
@@ -29,12 +29,14 @@ This version is modified from the base version in Dove0 via:
 3-  statically track which iters are at-position
 4-  statically track which positions are at -inf - NOT DONE (because its super cheap here)
 5-  smarter iterator to advance; NO CHANGE: outer iter moves faster
-H2O brute force solution times is given above; it is about 350X faster.
-See Dove6 for an improved version.
+6-  'next' iters after a hit; NO CHANGE: very dataset dependent
+6-  manually inline to remove join & iter objects; SLIGHTY WORSE: probably i-cache issues
+6-  Parallelize, H2O-style; 10x speedup on 20 cores
+H2O brute force solution times is given above; it is about 25X faster.
  */
 
-public class Dove5 implements TSMB.TSMBI {
-  @Override public String name() { return "Dove5"; }
+public class Dove6 implements TSMB.TSMBI {
+  @Override public String name() { return "Dove6"; }
   static final boolean PRINT_TIMING = false;
 
   // -----------------------------------------------------------------
@@ -55,7 +57,8 @@ public class Dove5 implements TSMB.TSMBI {
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Sort#"+sids.numRows()+" "+(t-t0)+" msec"); t0=t; }
 
     // Dovetail join, counting hits
-    long cnt = join_triangles(sids.vec(0),sids.vec(1));
+    //long cnt = join_triangles(sids.vec(0),sids.vec(1));
+    long cnt = new Triangles().doAll(sids.vec(0),sids.vec(1))._cnt;
     sids.delete();
     if( PRINT_TIMING ) { t=System.currentTimeMillis(); System.out.println("Dovetail "+(t-t0)+" msec"); t0=t; }
 
@@ -108,7 +111,17 @@ public class Dove5 implements TSMB.TSMBI {
       int tmp=cmp(es);
       return before ? tmp < 0 : tmp == 0;
     }
-
+    
+    void next() {
+      if( _pos+1 >= _nrows ) return; // Already off end
+      _pos++;
+      if( _pos==_nrows ) {
+        _kx = _ky = PINF;
+      } else {
+        _kx = _vx.at4(_pos);
+        _ky = _vy.at4(_pos);
+      }
+    }
 
     // Seek a few nearby positions before falling back to binary search to the LUB.
     final void seek( int key0, int key1 ) {
@@ -215,7 +228,6 @@ public class Dove5 implements TSMB.TSMBI {
     final int[] es = new int[]{e0,e1, e1};
 
     // Until at_end, find first minimal iter, and seek_lub.
-    int debug_cnt=0, DEBUG_CNT=-1;
     long cnt=0;                 // The answer
     int state=0;                // which iters are at-position
     while( !at_end(es) ) {
@@ -233,7 +245,6 @@ public class Dove5 implements TSMB.TSMBI {
         es[es.length-1]++;      // Bump the innermost join point
         state=1;                // R keeps at-pos, but S & T do not
       }
-      debug_cnt++;
     }
 
     return cnt;
@@ -291,4 +302,49 @@ public class Dove5 implements TSMB.TSMBI {
   }
 
   private static boolean at_end( int[] es ) { return es[0]== Iter.PINF; }
+
+
+  // --------------------------------------------------------------------------
+  private static class Triangles extends MRTask<Triangles> {
+    long _cnt;
+    @Override public void map( Chunk c0, Chunk c1 ) {
+      long cnt=0;
+      Vec v0 = c0.vec(), v1 = c1.vec();
+      long start = c0.start(), end = start+c0._len, nrows = v0.length();
+
+      // Make an iter for P1->P2 and P2->P3 relations.
+      final IterR iter_r = new IterR(v0,v1);
+      final IterS iter_s = new IterS(v0,v1);
+      final IterT iter_t = new IterT(v0,v1);
+      
+      // Initial & ending join point (inclusive,exclusive):
+      int e0 = end < nrows ? (int)v0.at8(end) : Iter.PINF;
+      int e1 = end < nrows ? (int)v1.at8(end) : Iter.PINF;
+      final int[] es  = new int[]{(int)v0.at8(start),(int)v1.at8(start),Iter.NINF};
+      final int[] last= new int[]{     e0,                e1,           Iter.NINF};
+      
+      // Until at_end, find first minimal iter, and seek_lub.
+      int state=0;                // which iters are at-position      
+      while( cmp(es,last) < 0 ) {
+
+        if(      (state&1)==0 )  state = seek_R(iter_r,iter_s,iter_t,es,state);
+        else if( (state&2)==0 )  state = seek_S(iter_r,iter_s,iter_t,es,state);
+        else if( (state&4)==0 )  state = seek_T(iter_r,iter_s,iter_t,es,state);
+        assert iter_r.check_pos(es,(state&1)==0);
+        assert iter_s.check_pos(es,(state&2)==0);
+        assert iter_t.check_pos(es,(state&4)==0);
+        
+        // Are all iters at the join position?
+        if( state==7 ) {
+          cnt++;                  // Found a join element; do join work
+          es[es.length-1]++;      // Bump the innermost join point
+          state=1;                // R keeps at-pos, but S & T do not
+        }
+      }
+      
+      _cnt=cnt;
+    }
+    @Override public void reduce( Triangles C ) { _cnt += C._cnt; }
+  }
+
 }
